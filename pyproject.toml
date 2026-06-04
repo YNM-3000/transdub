@@ -16,6 +16,7 @@ recreator-download = "download.cli:main"
 recreator-compose = "compose.cli:main"
 recreator-publish = "publish.cli:main"
 recreator-data = "data.cli:main"
+recreator-monitor = "monitor.cli:main"
 recreator-run = "orchestrate.cli:main"
 
 [dependency-groups]
@@ -29,11 +30,11 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["translate", "download", "orchestrate", "compose", "publish", "data"]
+packages = ["translate", "download", "orchestrate", "compose", "publish", "data", "monitor"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
 
 [tool.coverage.run]
-source = ["translate", "download", "orchestrate", "compose", "publish", "data"]
+source = ["translate", "download", "orchestrate", "compose", "publish", "data", "monitor"]

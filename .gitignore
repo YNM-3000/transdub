@@ -6,6 +6,7 @@ out/
 downloads/
 output/
 *.db
+channels.json
 .pytest_cache/
 .coverage
 htmlcov/

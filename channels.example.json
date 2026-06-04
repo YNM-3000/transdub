@@ -1,0 +1,11 @@
+{
+  "scan_limit": 5,
+  "categories": {
+    "life-knowledge": {
+      "min_trending_views": 100000,
+      "channels": [
+        {"id": "UCxxxxxxxxxxxxxxxxxxxxxx", "name": "Example Channel"}
+      ]
+    }
+  }
+}

@@ -15,6 +15,17 @@ uv sync
 cp .env.example .env   # then fill in ANTHROPIC_API_KEY
 ```
 
+## Monitor channels + notify
+
+Maintain a category-grouped watchlist (`channels.json`, see
+`channels.example.json`), then scan for new and trending videos and email a
+digest. Needs `YOUTUBE_API_KEY` and `SMTP_*` in `.env`.
+
+```bash
+uv run recreator-monitor --config channels.json            # scan + email
+uv run recreator-monitor --config channels.json --dry-run  # scan + print only
+```
+
 ## Download + translate (end to end)
 
 ```bash
@@ -100,5 +111,6 @@ as sibling packages.
 - `compose/` — ffmpeg burn-in / soft-mux of bilingual subs into a final video
 - `publish/` — Chinese title/description/tags (pluggable LLM) + cover frame
 - `data/` — SQLite store of source vs. re-upload metric snapshots
+- `monitor/` — YouTube Data API channel watch + new/trending detection + email digest
 - `orchestrate/` — composes the stages (download → translate handoff); the seam
   a workflow framework would later replace
