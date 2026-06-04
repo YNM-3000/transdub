@@ -54,6 +54,15 @@ into `output/<date>/<channel>/`:
 uv run recreator-publish video.mp4 -s video.bilingual.ass
 ```
 
+Track metrics — ingest source data from the downloaded info.json, record your
+upload's numbers, and compare:
+
+```bash
+uv run recreator-data record-source downloads
+uv run recreator-data record-upload --source-id VIDEO_ID --platform bilibili --views 8200 --likes 430
+uv run recreator-data show VIDEO_ID
+```
+
 The translation backend is pluggable (`--backend`, default `claude`). A local
 LLM backend can be added later without touching the pipeline or CLI.
 
@@ -90,5 +99,6 @@ as sibling packages.
     `styler.py` bilingual ASS; `pipeline.py` orchestration; `cli.py` entry point
 - `compose/` — ffmpeg burn-in / soft-mux of bilingual subs into a final video
 - `publish/` — Chinese title/description/tags (pluggable LLM) + cover frame
+- `data/` — SQLite store of source vs. re-upload metric snapshots
 - `orchestrate/` — composes the stages (download → translate handoff); the seam
   a workflow framework would later replace

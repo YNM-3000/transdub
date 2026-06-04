@@ -5,6 +5,7 @@ __pycache__/
 out/
 downloads/
 output/
+*.db
 .pytest_cache/
 .coverage
 htmlcov/
