@@ -15,7 +15,25 @@ uv sync
 cp .env.example .env   # then fill in ANTHROPIC_API_KEY
 ```
 
-## Translate a subtitle
+## Download + translate (end to end)
+
+```bash
+uv run recreator-run "https://www.youtube.com/watch?v=VIDEO_ID"
+```
+
+Downloads the video + subtitles into `downloads/<date>/<channel>/`, then
+translates them, writing `*.bilingual.ass` next to the video. Accepts multiple
+URLs (parallel downloads via `--jobs`).
+
+## Individual stages
+
+Download only:
+
+```bash
+uv run recreator-download "https://www.youtube.com/watch?v=VIDEO_ID"
+```
+
+Translate an existing subtitle:
 
 ```bash
 uv run recreator-translate samples/demo.srt -o out/demo.bilingual.ass
@@ -45,15 +63,15 @@ uv run pytest --cov=translate
 
 ## Architecture
 
-Flat, feature-named top-level packages (no `src/` nesting). The translator
-lives in `translate/`; future stages (`download/`, `monitor/`, `dubbing/`,
-`compose/`, …) join as sibling packages. Each stage is a pure function with
-clear inputs/outputs so the pipeline can later move onto a workflow framework.
+Flat, feature-named top-level packages (no `src/` nesting). Each stage is a
+pure function with clear inputs/outputs so the flow can later move onto a
+workflow framework. Future stages (`monitor/`, `dubbing/`, `compose/`, …) join
+as sibling packages.
 
-- `translate/models.py` — immutable `Cue` / `Chunk`
-- `translate/subtitle.py` — load + chunk (pysubs2)
-- `translate/backend.py` — `TranslationBackend` protocol + resolver
-- `translate/claude_backend.py` — Claude implementation
-- `translate/styler.py` — bilingual ASS builder
-- `translate/pipeline.py` — orchestration
-- `translate/cli.py` — CLI entry point
+- `download/` — yt-dlp wrapper → video + subtitles, parallel downloads
+- `translate/` — subtitle → bilingual ASS
+  - `models.py` immutable `Cue`/`Chunk`; `subtitle.py` load + de-roll + chunk;
+    `backend.py` `TranslationBackend` protocol; `claude_backend.py` Claude impl;
+    `styler.py` bilingual ASS; `pipeline.py` orchestration; `cli.py` entry point
+- `orchestrate/` — composes the stages (download → translate handoff); the seam
+  a workflow framework would later replace
