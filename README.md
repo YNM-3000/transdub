@@ -24,10 +24,17 @@ uv run recreator-translate samples/demo.srt -o out/demo.bilingual.ass
 The translation backend is pluggable (`--backend`, default `claude`). A local
 LLM backend can be added later without touching the pipeline or CLI.
 
-To obtain a real subtitle to test with:
+YouTube **auto-generated captions** use a "rolling" format (each cue repeats
+the previous line plus one new line). These are de-rolled into clean,
+sequential cues before translation; pass `--no-clean` to disable.
+
+To obtain a real subtitle to test with (YouTube now requires browser cookies
+to pass its bot check, and a JS runtime such as `deno` for challenge solving):
 
 ```bash
-yt-dlp --write-auto-subs --skip-download --sub-lang en -o "samples/%(title)s" <youtube_url>
+yt-dlp --cookies-from-browser chrome --ignore-no-formats-error \
+  --write-subs --write-auto-subs --sub-lang en --skip-download \
+  --convert-subs srt -o "samples/%(title)s.%(ext)s" <youtube_url>
 ```
 
 ## Tests

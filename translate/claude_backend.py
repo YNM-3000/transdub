@@ -1,13 +1,17 @@
 """Claude implementation of TranslationBackend.
 
 Translates life/knowledge-video subtitles into natural, spoken Chinese.
-Uses prompt caching on the system prompt and retries transient API errors.
+
+Wire format: numbered plain-text lines ("N. translation"), NOT JSON. Subtitle
+text is full of quotes and commas, and the model's JSON escaping proved
+unreliable for arrays; line-numbered text is parsed by index and is immune to
+those characters, tolerant of preamble, and self-correcting via retries.
 """
 
 from __future__ import annotations
 
-import json
 import os
+import re
 import time
 
 from .backend import LengthMismatchError
@@ -25,10 +29,17 @@ Rules:
 - Translate into colloquial, fluent Chinese that sounds natural when spoken,
   not literal word-for-word.
 - Keep terminology consistent across lines.
-- Preserve the meaning and tone; do not add or omit content.
+- Preserve meaning and tone; do not add or omit content.
 - Each input line maps to exactly one output line. Never merge or split lines.
-- Output ONLY a JSON array of strings, one per input line, in order.
+
+Output format (STRICT):
+- Output one line per input line, prefixed with its number and a period:
+  `1. 译文`
+- Output exactly as many numbered lines as there were input lines, in order.
+- No preamble, no commentary, no blank lines, nothing but the numbered lines.
 """
+
+_NUMBERED = re.compile(r"^\s*(\d+)[.)、]\s*(.*)$")
 
 
 class ClaudeBackend:
@@ -61,20 +72,17 @@ class ClaudeBackend:
         numbered = "\n".join(f"{i + 1}. {line}" for i, line in enumerate(cues))
         user = (
             f"Context (for coherence only, do not translate):\n{context}\n\n"
-            f"Translate these {len(cues)} lines to Chinese and return a JSON "
-            f"array of exactly {len(cues)} strings, in order:\n{numbered}"
+            f"Translate these {len(cues)} lines to Chinese. Output exactly "
+            f"{len(cues)} numbered lines, in order:\n{numbered}"
         )
 
         last_err: Exception | None = None
         for attempt in range(self._max_retries):
             try:
                 text = self._request(user)
-                translated = _parse_array(text)
-                if len(translated) != len(cues):
-                    raise LengthMismatchError(len(cues), len(translated))
-                return translated
+                return _parse_numbered(text, len(cues))
             except LengthMismatchError as err:
-                last_err = err  # retry: model miscounted lines
+                last_err = err  # retry: model dropped/added lines
             except Exception as err:
                 if _is_non_retryable(err):
                     raise  # auth/permission/bad-request: retrying won't help
@@ -89,7 +97,7 @@ class ClaudeBackend:
     def _request(self, user: str) -> str:
         message = self.client.messages.create(
             model=self._model,
-            max_tokens=4096,
+            max_tokens=8192,
             system=[
                 {
                     "type": "text",
@@ -112,14 +120,26 @@ def _is_non_retryable(err: Exception) -> bool:
     return isinstance(status, int) and 400 <= status < 500 and status != 429
 
 
-def _parse_array(text: str) -> list[str]:
-    """Extract a JSON array of strings from the model response."""
-    cleaned = text.strip()
-    start = cleaned.find("[")
-    end = cleaned.rfind("]")
-    if start == -1 or end == -1 or end < start:
-        raise ValueError(f"no JSON array in response: {text[:200]!r}")
-    data = json.loads(cleaned[start : end + 1])
-    if not isinstance(data, list) or not all(isinstance(x, str) for x in data):
-        raise ValueError("response JSON is not a list of strings")
-    return data
+def _parse_numbered(text: str, expected: int) -> list[str]:
+    """Parse `N. translation` lines into an ordered list of `expected` items.
+
+    Lines that do not start with a number are treated as continuations of the
+    current entry (so a wrapped translation is preserved). Raises
+    LengthMismatchError if any of 1..expected is missing.
+    """
+    by_index: dict[int, str] = {}
+    current: int | None = None
+    for line in text.splitlines():
+        match = _NUMBERED.match(line)
+        if match:
+            current = int(match.group(1))
+            by_index[current] = match.group(2).strip()
+        elif current is not None and line.strip():
+            by_index[current] = f"{by_index[current]} {line.strip()}".strip()
+
+    out: list[str] = []
+    for i in range(1, expected + 1):
+        if i not in by_index:
+            raise LengthMismatchError(expected, len(by_index))
+        out.append(by_index[i])
+    return out

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from translate.models import Cue
-from translate.subtitle import chunk_cues, load_cues
+from translate.subtitle import chunk_cues, dedupe_rolling, load_cues
 
 
 def test_load_cues_parses_and_drops_blank(sample_srt):
@@ -15,7 +15,40 @@ def test_load_cues_parses_and_drops_blank(sample_srt):
     # Indices are stable to the kept cues (0-based, contiguous).
     assert [c.index for c in cues] == [0, 1]
     assert cues[0].start_ms == 1000
-    assert cues[0].end_ms == 3500
+
+
+def test_dedupe_rolling_collapses_youtube_auto_captions():
+    # Classic rolling format: each cue repeats the prior line + one new line,
+    # interleaved with tiny transitional cues.
+    rolling = [
+        Cue(0, 0, 1590, "Look, be honest"),
+        Cue(1, 1590, 1600, "Look, be honest\n "),
+        Cue(2, 1600, 3670, "Look, be honest\nsecond, you have a drawer"),
+        Cue(3, 3670, 3680, "second, you have a drawer\n "),
+        Cue(4, 3680, 6470, "second, you have a drawer\nthere's a cable"),
+    ]
+    out = dedupe_rolling(rolling)
+
+    assert [c.text for c in out] == [
+        "Look, be honest",
+        "second, you have a drawer",
+        "there's a cable",
+    ]
+    # Re-timed sequentially with no overlaps.
+    assert out[0].start_ms == 0 and out[0].end_ms == 1600
+    assert out[1].start_ms == 1600 and out[1].end_ms == 3680
+    assert all(out[i].end_ms <= out[i + 1].start_ms for i in range(len(out) - 1))
+
+
+def test_dedupe_rolling_is_noop_for_clean_subtitles():
+    clean = [Cue(0, 0, 1000, "one"), Cue(1, 1000, 2000, "two")]
+    out = dedupe_rolling(clean)
+    assert [c.text for c in out] == ["one", "two"]
+
+
+def test_load_cues_no_clean_keeps_raw_lines(sample_srt):
+    cues = load_cues(sample_srt, clean=False)
+    assert [c.text for c in cues] == ["Hello world", "Third line"]
 
 
 def _cues(n: int) -> list[Cue]:

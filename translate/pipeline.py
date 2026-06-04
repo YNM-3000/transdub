@@ -32,9 +32,13 @@ def translate_file(
     in_path: str | Path,
     out_path: str | Path,
     backend: TranslationBackend,
+    clean: bool = True,
 ) -> Path:
-    """Translate a subtitle file and write a bilingual ASS to `out_path`."""
-    cues = load_cues(in_path)
+    """Translate a subtitle file and write a bilingual ASS to `out_path`.
+
+    `clean` de-rolls YouTube auto-captions before translating (see load_cues).
+    """
+    cues = load_cues(in_path, clean=clean)
     if not cues:
         raise ValueError(f"no usable cues found in {in_path}")
 

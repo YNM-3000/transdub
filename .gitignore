@@ -6,3 +6,8 @@ out/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Downloaded third-party subtitles — keep only the authored demo sample
+samples/*.srt
+samples/*.vtt
+!samples/demo.srt

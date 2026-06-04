@@ -33,6 +33,12 @@ def main(argv: list[str] | None = None) -> int:
         default=os.environ.get("TRANSLATE_BACKEND", "claude"),
         help="translation backend (default: claude, or $TRANSLATE_BACKEND)",
     )
+    parser.add_argument(
+        "--no-clean",
+        dest="clean",
+        action="store_false",
+        help="do not de-roll YouTube auto-captions before translating",
+    )
     args = parser.parse_args(argv)
 
     in_path = args.input
@@ -43,7 +49,7 @@ def main(argv: list[str] | None = None) -> int:
     out_path = args.output or _default_out(in_path)
     try:
         backend = get_backend(args.backend)
-        result = translate_file(in_path, out_path, backend)
+        result = translate_file(in_path, out_path, backend, clean=args.clean)
     except Exception as err:
         print(f"error: {err}", file=sys.stderr)
         return 1
