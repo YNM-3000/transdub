@@ -10,6 +10,7 @@ channels.json
 .pytest_cache/
 .coverage
 htmlcov/
+.DS_Store
 
 # Downloaded third-party subtitles — keep only the authored demo sample
 samples/*.srt
