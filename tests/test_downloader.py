@@ -66,6 +66,7 @@ def test_build_command_encodes_structure_and_flags():
     assert out == "downloads/2026-06-04/%(channel)s/%(title)s.%(ext)s"
     assert "--dump-json" in cmd and "--no-simulate" in cmd
     assert "--write-info-json" in cmd  # source-metadata sidecar for publish
+    assert "--write-thumbnail" in cmd  # source thumbnail for the cover
 
 
 def test_build_command_omits_cookies_when_disabled():

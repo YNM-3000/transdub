@@ -7,7 +7,13 @@ from dataclasses import replace
 from pathlib import Path
 
 from .backend import MetadataBackend
-from .cover import Runner, _default_runner, cover_timestamp, extract_cover
+from .cover import (
+    Runner,
+    _default_runner,
+    convert_thumbnail,
+    cover_timestamp,
+    extract_cover,
+)
 from .models import PublishMetadata, PublishPackage
 from .source import SourceInfo, attribution_block
 
@@ -44,6 +50,7 @@ def build_package(
     backend: MetadataBackend,
     source_title: str | None = None,
     source: SourceInfo | None = None,
+    thumbnail: str | Path | None = None,
     cover_video: str | Path | None = None,
     output_dir: str | Path = DEFAULT_OUTPUT_DIR,
     cover_at: float | None = None,
@@ -51,11 +58,13 @@ def build_package(
 ) -> PublishPackage:
     """Generate metadata + cover for a video. Never raises — errors returned.
 
-    Metadata is required; the cover is best-effort (a failed extraction leaves
+    Metadata is required; the cover is best-effort (a failure leaves
     `cover_path` None but still yields an ok package). When `source` is given,
-    a deterministic attribution block is appended to the description. The cover
-    is taken from `cover_video` when supplied (e.g. the clean pre-burn source),
-    otherwise from `video_path`.
+    a deterministic attribution block is appended to the description.
+
+    Cover source preference: `thumbnail` (the real platform thumbnail) →
+    a frame from `cover_video` (the clean pre-burn source) → a frame from
+    `video_path`.
     """
     video = Path(video_path)
     title = source_title or video.stem
@@ -78,10 +87,14 @@ def build_package(
         encoding="utf-8",
     )
 
-    cover_src = Path(cover_video) if cover_video and Path(cover_video).is_file() else video
     cover_path: Path | None = out_dir / f"{video.stem}.cover.jpg"
-    ts = cover_timestamp(cover_src, cover_at, runner)
-    ok, _err = extract_cover(cover_src, cover_path, ts, runner)
+    ok = False
+    if thumbnail and Path(thumbnail).is_file():
+        ok, _err = convert_thumbnail(Path(thumbnail), cover_path, runner)
+    if not ok:  # no usable thumbnail — fall back to a frame grab
+        cover_src = Path(cover_video) if cover_video and Path(cover_video).is_file() else video
+        ts = cover_timestamp(cover_src, cover_at, runner)
+        ok, _err = extract_cover(cover_src, cover_path, ts, runner)
     if not ok:
         cover_path = None
 

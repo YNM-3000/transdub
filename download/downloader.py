@@ -55,6 +55,7 @@ def build_command(
         "--write-subs", "--write-auto-subs", "--sub-langs", "en.*,en",
         "--convert-subs", "srt",
         "--write-info-json",  # persist source metadata sidecar for later stages
+        "--write-thumbnail", "--convert-thumbnails", "jpg",  # source thumbnail
         "-f", fmt,
         "--merge-output-format", "mp4",
         "-o", outtmpl,

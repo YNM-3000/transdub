@@ -45,6 +45,23 @@ def cover_timestamp(
     return duration * COVER_FRACTION if duration else FALLBACK_COVER_SECONDS
 
 
+def convert_thumbnail(
+    thumbnail: Path,
+    out_path: Path,
+    runner: Runner = _default_runner,
+) -> tuple[bool, str | None]:
+    """Convert an existing thumbnail image to the cover JPEG."""
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [FFMPEG, "-y", "-i", str(thumbnail), str(out_path)]
+    try:
+        proc = runner(cmd)
+    except Exception as err:
+        return False, str(err)
+    if proc.returncode != 0:
+        return False, (proc.stderr or "").strip()[-400:]
+    return True, None
+
+
 def extract_cover(
     video: Path,
     out_path: Path,

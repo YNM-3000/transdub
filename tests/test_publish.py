@@ -11,13 +11,19 @@ import pytest
 from publish.backend import get_metadata_backend
 from publish.claude_backend import ClaudeMetadataBackend, _parse_metadata
 from publish.content import chinese_from_ass
-from publish.cover import cover_timestamp, extract_cover, probe_duration
+from publish.cover import (
+    convert_thumbnail,
+    cover_timestamp,
+    extract_cover,
+    probe_duration,
+)
 from publish.models import PublishMetadata
 from publish.package import build_package, mirrored_dir
 from publish.source import (
     SourceInfo,
     attribution_block,
     find_info_json,
+    source_thumbnail_for,
     source_video_for,
 )
 
@@ -286,6 +292,14 @@ def test_source_video_for_none_when_missing(tmp_path):
     assert source_video_for(None) is None
 
 
+def test_source_thumbnail_for_finds_sibling_image(tmp_path):
+    (tmp_path / "Clip.jpg").write_bytes(b"img")
+    info = tmp_path / "Clip.info.json"
+    info.write_text("{}", encoding="utf-8")
+    assert source_thumbnail_for(info) == tmp_path / "Clip.jpg"
+    assert source_thumbnail_for(None) is None
+
+
 def test_build_package_extracts_cover_from_source_video(final_video, tmp_path):
     # A clean source video distinct from the (burned) final video.
     source_video = tmp_path / "source" / "Clip.mp4"
@@ -306,6 +320,67 @@ def test_build_package_extracts_cover_from_source_video(final_video, tmp_path):
     )
     assert pkg.ok and pkg.cover_path is not None
     assert inputs[0] == str(source_video)  # cover taken from the clean source
+
+
+def test_build_package_prefers_thumbnail_over_frame(final_video, tmp_path):
+    thumb = tmp_path / "Clip.jpg"
+    thumb.write_bytes(b"thumb")
+    source_video = tmp_path / "Clip.mp4"
+    source_video.write_bytes(b"v")
+
+    cmds = []
+
+    def runner(cmd):
+        cmds.append(cmd)
+        if cmd[0] == "ffmpeg":
+            Path(cmd[-1]).write_bytes(b"jpg")
+        return SimpleNamespace(returncode=0, stdout="100.0\n", stderr="")
+
+    pkg = build_package(
+        final_video, "c", backend=FakeBackend(),
+        thumbnail=thumb, cover_video=source_video,
+        output_dir=tmp_path / "p", runner=runner,
+    )
+    assert pkg.ok and pkg.cover_path is not None
+    # The (only) ffmpeg call converts the thumbnail — no frame grab (no -ss).
+    ffmpeg_cmds = [c for c in cmds if c[0] == "ffmpeg"]
+    assert len(ffmpeg_cmds) == 1
+    assert ffmpeg_cmds[0][ffmpeg_cmds[0].index("-i") + 1] == str(thumb)
+    assert "-ss" not in ffmpeg_cmds[0]
+
+
+def test_build_package_falls_back_to_frame_when_thumbnail_conversion_fails(final_video, tmp_path):
+    thumb = tmp_path / "Clip.jpg"
+    thumb.write_bytes(b"thumb")
+
+    def runner(cmd):
+        # ffprobe (duration) ok; ffmpeg convert (no -ss) fails; ffmpeg frame (-ss) ok.
+        if cmd[0] == "ffprobe":
+            return SimpleNamespace(returncode=0, stdout="100.0\n", stderr="")
+        if "-ss" not in cmd:  # the thumbnail conversion
+            return SimpleNamespace(returncode=1, stdout="", stderr="bad image")
+        Path(cmd[-1]).write_bytes(b"jpg")  # the frame grab
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    pkg = build_package(
+        final_video, "c", backend=FakeBackend(),
+        thumbnail=thumb, output_dir=tmp_path / "p", runner=runner,
+    )
+    assert pkg.ok and pkg.cover_path is not None  # recovered via frame grab
+
+
+def test_convert_thumbnail_builds_command(tmp_path):
+    calls = []
+
+    def runner(cmd):
+        calls.append(cmd)
+        Path(cmd[-1]).write_bytes(b"jpg")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    out = tmp_path / "o" / "cover.jpg"
+    ok, err = convert_thumbnail(Path("/t/Clip.webp"), out, runner)
+    assert ok and err is None and out.is_file()
+    assert calls[0][calls[0].index("-i") + 1] == "/t/Clip.webp"
 
 
 def test_build_package_falls_back_to_video_when_cover_source_missing(final_video, tmp_path):

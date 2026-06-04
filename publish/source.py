@@ -60,6 +60,20 @@ def attribution_block(source: SourceInfo) -> str:
 
 
 _VIDEO_EXTS = (".mp4", ".mkv", ".webm", ".mov")
+_IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp")
+
+
+def _sibling_with_ext(info_json: str | Path | None, exts: tuple[str, ...]) -> Path | None:
+    """Find a same-stemmed sibling of the info.json with one of `exts`."""
+    if not info_json:
+        return None
+    info = Path(info_json)
+    base = info.name[: -len(".info.json")]
+    for ext in exts:
+        candidate = info.parent / f"{base}{ext}"
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 def source_video_for(info_json: str | Path | None) -> Path | None:
@@ -69,15 +83,16 @@ def source_video_for(info_json: str | Path | None) -> Path | None:
     (pre-burn) video is the same-stemmed sibling — the right source for a cover
     frame without burned-in subtitles.
     """
-    if not info_json:
-        return None
-    info = Path(info_json)
-    base = info.name[: -len(".info.json")]
-    for ext in _VIDEO_EXTS:
-        candidate = info.parent / f"{base}{ext}"
-        if candidate.is_file():
-            return candidate
-    return None
+    return _sibling_with_ext(info_json, _VIDEO_EXTS)
+
+
+def source_thumbnail_for(info_json: str | Path | None) -> Path | None:
+    """Locate the downloaded source thumbnail beside its info.json.
+
+    yt-dlp's `--write-thumbnail` saves `<title>.jpg` next to the video — the
+    real platform thumbnail, a better cover than an arbitrary frame.
+    """
+    return _sibling_with_ext(info_json, _IMAGE_EXTS)
 
 
 def find_info_json(*candidates: str | Path | None) -> Path | None:

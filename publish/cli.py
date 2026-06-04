@@ -12,7 +12,12 @@ from dotenv import load_dotenv
 from .backend import get_metadata_backend
 from .content import chinese_from_ass
 from .package import DEFAULT_OUTPUT_DIR, build_package
-from .source import SourceInfo, find_info_json, source_video_for
+from .source import (
+    SourceInfo,
+    find_info_json,
+    source_thumbnail_for,
+    source_video_for,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -31,6 +36,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--cover-at", type=float, metavar="SECONDS",
         help="timestamp for the cover frame (default: ~30%% of duration)",
+    )
+    parser.add_argument("--thumbnail", help="image to use as the cover (overrides auto-detect)")
+    parser.add_argument(
+        "--cover-frame", action="store_true",
+        help="extract a video frame instead of using the source thumbnail",
     )
     parser.add_argument(
         "--info-json",
@@ -61,7 +71,8 @@ def main(argv: list[str] | None = None) -> int:
 
     info_path = args.info_json or find_info_json(args.subtitle, args.video)
     source = _resolve_source(args, info_path)
-    # Prefer the clean pre-burn source video for the cover (no burned subs).
+    # Cover preference: source thumbnail → clean pre-burn source frame.
+    thumbnail = None if args.cover_frame else (args.thumbnail or source_thumbnail_for(info_path))
     cover_video = source_video_for(info_path)
 
     pkg = build_package(
@@ -69,6 +80,7 @@ def main(argv: list[str] | None = None) -> int:
         content,
         backend=backend,
         source=source,
+        thumbnail=thumbnail,
         cover_video=cover_video,
         output_dir=args.output_dir,
         cover_at=args.cover_at,
