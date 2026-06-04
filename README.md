@@ -26,15 +26,27 @@ uv run recreator-monitor --config channels.json            # scan + email
 uv run recreator-monitor --config channels.json --dry-run  # scan + print only
 ```
 
-## Download + translate (end to end)
+## Full pipeline (one flow, with retries)
 
 ```bash
 uv run recreator-run "https://www.youtube.com/watch?v=VIDEO_ID"
 ```
 
-Downloads the video + subtitles into `downloads/<date>/<channel>/`, then
-translates them, writing `*.bilingual.ass` next to the video. Accepts multiple
-URLs (parallel downloads via `--jobs`).
+Runs every stage end to end — download → translate → compose → publish → record
+metrics — each retried on transient failure. Useful flags:
+
+- `--stop-after translate` halt at the human subtitle-review gate (then run
+  `recreator-compose` / `recreator-publish` after review)
+- `--stop-after compose` stop before publishing
+- `--no-publish` / `--no-data` skip those stages
+- `--attempts N` / `--retry-delay S` tune the retry policy
+- `--schedule SECONDS` (+ optional `--max-runs N`) repeat on an interval
+
+Run a scheduled monitor scan instead of processing URLs:
+
+```bash
+uv run recreator-run --monitor --schedule 3600        # scan + email hourly
+```
 
 ## Individual stages
 
@@ -112,5 +124,6 @@ as sibling packages.
 - `publish/` — Chinese title/description/tags (pluggable LLM) + cover frame
 - `data/` — SQLite store of source vs. re-upload metric snapshots
 - `monitor/` — YouTube Data API channel watch + new/trending detection + email digest
-- `orchestrate/` — composes the stages (download → translate handoff); the seam
-  a workflow framework would later replace
+- `orchestrate/` — wires the stages into one flow (`flow.run_full`) with a
+  retry policy and an interval scheduler; the seam a workflow framework would
+  later replace

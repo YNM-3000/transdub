@@ -133,30 +133,60 @@ def test_process_urls_handles_each_independently(tmp_path, fake_backend):
     assert all(r.ass_path.is_file() for r in results)
 
 
-def test_cli_prints_summary_and_exit_code(tmp_path, monkeypatch, capsys):
+def test_cli_runs_pipeline_and_reports(monkeypatch, capsys):
     from orchestrate import cli
-    from orchestrate.models import NO_SUBTITLE, PipelineResult, TRANSLATED
+    from orchestrate.flow import COMPLETED, DOWNLOAD_FAILED, FlowResult
 
-    results = [
-        PipelineResult("u1", TRANSLATED, ass_path=tmp_path / "a.ass"),
-        PipelineResult("u2", NO_SUBTITLE, error="no subtitle track"),
-    ]
+    monkeypatch.setattr(cli, "load_dotenv", lambda *a, **k: None)
     monkeypatch.setattr(cli, "get_backend", lambda name: object())
-    monkeypatch.setattr(cli, "process_urls", lambda *a, **k: results)
+    results = iter([
+        FlowResult("u1", COMPLETED),
+        FlowResult("u2", DOWNLOAD_FAILED, error="boom"),
+    ])
+    monkeypatch.setattr(cli, "run_full", lambda url, **k: next(results))
 
-    rc = cli.main(["u1", "u2"])
+    rc = cli.main(["u1", "u2", "--no-publish", "--no-data"])
     out = capsys.readouterr()
 
     assert rc == 1
-    assert "a.ass" in out.out
-    assert "no_subtitle" in out.err
+    assert "completed" in out.out
+    assert "boom" in out.err
+
+
+def test_cli_no_urls_returns_2(monkeypatch):
+    from orchestrate import cli
+    monkeypatch.setattr(cli, "load_dotenv", lambda *a, **k: None)
+    assert cli.main([]) == 2
 
 
 def test_cli_backend_resolution_error_returns_2(monkeypatch):
     from orchestrate import cli
 
-    def boom(name):
-        raise ValueError("bad backend")
+    monkeypatch.setattr(cli, "load_dotenv", lambda *a, **k: None)
+    monkeypatch.setattr(cli, "get_backend", lambda name: (_ for _ in ()).throw(ValueError("bad")))
+    assert cli.main(["u", "--backend", "nope", "--no-data", "--no-publish"]) == 2
 
-    monkeypatch.setattr(cli, "get_backend", boom)
-    assert cli.main(["u", "--backend", "nope"]) == 2
+
+def test_cli_monitor_mode_delegates(monkeypatch):
+    from orchestrate import cli
+
+    monkeypatch.setattr(cli, "load_dotenv", lambda *a, **k: None)
+    captured = {}
+    monkeypatch.setattr(cli, "monitor_main", lambda argv: captured.update(argv=argv) or 0)
+    assert cli.main(["--monitor", "--config", "c.json", "--db", "d.db", "--dry-run"]) == 0
+    assert "--dry-run" in captured["argv"]
+
+
+def test_cli_schedule_uses_scheduler(monkeypatch):
+    from orchestrate import cli
+
+    monkeypatch.setattr(cli, "load_dotenv", lambda *a, **k: None)
+    monkeypatch.setattr(cli, "get_backend", lambda name: object())
+    captured = {}
+    monkeypatch.setattr(
+        cli, "run_periodically",
+        lambda task, interval, **k: captured.update(interval=interval, max_runs=k.get("max_runs")),
+    )
+    rc = cli.main(["u", "--no-publish", "--no-data", "--schedule", "30", "--max-runs", "5"])
+    assert rc == 0
+    assert captured["interval"] == 30 and captured["max_runs"] == 5
