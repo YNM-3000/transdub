@@ -44,6 +44,7 @@ def build_package(
     backend: MetadataBackend,
     source_title: str | None = None,
     source: SourceInfo | None = None,
+    cover_video: str | Path | None = None,
     output_dir: str | Path = DEFAULT_OUTPUT_DIR,
     cover_at: float | None = None,
     runner: Runner = _default_runner,
@@ -52,7 +53,9 @@ def build_package(
 
     Metadata is required; the cover is best-effort (a failed extraction leaves
     `cover_path` None but still yields an ok package). When `source` is given,
-    a deterministic attribution block is appended to the description.
+    a deterministic attribution block is appended to the description. The cover
+    is taken from `cover_video` when supplied (e.g. the clean pre-burn source),
+    otherwise from `video_path`.
     """
     video = Path(video_path)
     title = source_title or video.stem
@@ -75,9 +78,10 @@ def build_package(
         encoding="utf-8",
     )
 
+    cover_src = Path(cover_video) if cover_video and Path(cover_video).is_file() else video
     cover_path: Path | None = out_dir / f"{video.stem}.cover.jpg"
-    ts = cover_timestamp(video, cover_at, runner)
-    ok, _err = extract_cover(video, cover_path, ts, runner)
+    ts = cover_timestamp(cover_src, cover_at, runner)
+    ok, _err = extract_cover(cover_src, cover_path, ts, runner)
     if not ok:
         cover_path = None
 

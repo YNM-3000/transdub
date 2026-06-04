@@ -14,7 +14,12 @@ from publish.content import chinese_from_ass
 from publish.cover import cover_timestamp, extract_cover, probe_duration
 from publish.models import PublishMetadata
 from publish.package import build_package, mirrored_dir
-from publish.source import SourceInfo, attribution_block, find_info_json
+from publish.source import (
+    SourceInfo,
+    attribution_block,
+    find_info_json,
+    source_video_for,
+)
 
 
 # --- metadata parsing / Claude backend ---------------------------------------
@@ -265,6 +270,59 @@ def test_find_info_json_matches_by_stem_prefix(tmp_path):
 
 def test_find_info_json_returns_none_when_absent(tmp_path):
     assert find_info_json(tmp_path / "nope.ass", None) is None
+
+
+def test_source_video_for_finds_sibling_video(tmp_path):
+    (tmp_path / "Clip.mp4").write_bytes(b"v")
+    info = tmp_path / "Clip.info.json"
+    info.write_text("{}", encoding="utf-8")
+    assert source_video_for(info) == tmp_path / "Clip.mp4"
+
+
+def test_source_video_for_none_when_missing(tmp_path):
+    info = tmp_path / "Clip.info.json"
+    info.write_text("{}", encoding="utf-8")
+    assert source_video_for(info) is None
+    assert source_video_for(None) is None
+
+
+def test_build_package_extracts_cover_from_source_video(final_video, tmp_path):
+    # A clean source video distinct from the (burned) final video.
+    source_video = tmp_path / "source" / "Clip.mp4"
+    source_video.parent.mkdir()
+    source_video.write_bytes(b"clean")
+
+    inputs = []
+
+    def runner(cmd):
+        if cmd[0] == "ffmpeg":
+            inputs.append(cmd[cmd.index("-i") + 1])
+            Path(cmd[-1]).write_bytes(b"jpg")
+        return SimpleNamespace(returncode=0, stdout="100.0\n", stderr="")
+
+    pkg = build_package(
+        final_video, "c", backend=FakeBackend(), cover_video=source_video,
+        output_dir=tmp_path / "p", runner=runner,
+    )
+    assert pkg.ok and pkg.cover_path is not None
+    assert inputs[0] == str(source_video)  # cover taken from the clean source
+
+
+def test_build_package_falls_back_to_video_when_cover_source_missing(final_video, tmp_path):
+    inputs = []
+
+    def runner(cmd):
+        if cmd[0] == "ffmpeg":
+            inputs.append(cmd[cmd.index("-i") + 1])
+            Path(cmd[-1]).write_bytes(b"jpg")
+        return SimpleNamespace(returncode=0, stdout="100.0\n", stderr="")
+
+    pkg = build_package(
+        final_video, "c", backend=FakeBackend(), cover_video=tmp_path / "gone.mp4",
+        output_dir=tmp_path / "p", runner=runner,
+    )
+    assert pkg.ok
+    assert inputs[0] == str(final_video)  # fell back to the given video
 
 
 # --- CLI ---------------------------------------------------------------------

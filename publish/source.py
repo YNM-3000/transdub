@@ -59,6 +59,27 @@ def attribution_block(source: SourceInfo) -> str:
     return "\n".join(lines)
 
 
+_VIDEO_EXTS = (".mp4", ".mkv", ".webm", ".mov")
+
+
+def source_video_for(info_json: str | Path | None) -> Path | None:
+    """Locate the clean source video sitting beside its info.json.
+
+    yt-dlp writes `<title>.info.json` next to `<title>.mp4`, so the original
+    (pre-burn) video is the same-stemmed sibling — the right source for a cover
+    frame without burned-in subtitles.
+    """
+    if not info_json:
+        return None
+    info = Path(info_json)
+    base = info.name[: -len(".info.json")]
+    for ext in _VIDEO_EXTS:
+        candidate = info.parent / f"{base}{ext}"
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 def find_info_json(*candidates: str | Path | None) -> Path | None:
     """Locate a yt-dlp *.info.json near a subtitle/video file.
 

@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from .backend import get_metadata_backend
 from .content import chinese_from_ass
 from .package import DEFAULT_OUTPUT_DIR, build_package
-from .source import SourceInfo, find_info_json
+from .source import SourceInfo, find_info_json, source_video_for
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -59,13 +59,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {err}", file=sys.stderr)
         return 2
 
-    source = _resolve_source(args)
+    info_path = args.info_json or find_info_json(args.subtitle, args.video)
+    source = _resolve_source(args, info_path)
+    # Prefer the clean pre-burn source video for the cover (no burned subs).
+    cover_video = source_video_for(info_path)
 
     pkg = build_package(
         args.video,
         content,
         backend=backend,
         source=source,
+        cover_video=cover_video,
         output_dir=args.output_dir,
         cover_at=args.cover_at,
     )
@@ -81,10 +85,9 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def _resolve_source(args) -> SourceInfo | None:
+def _resolve_source(args, info_path) -> SourceInfo | None:
     """Build SourceInfo from an info.json (explicit or auto-detected) + overrides."""
     source = SourceInfo()
-    info_path = args.info_json or find_info_json(args.subtitle, args.video)
     if info_path and Path(info_path).is_file():
         source = SourceInfo.from_ytdlp_json(info_path)
 
