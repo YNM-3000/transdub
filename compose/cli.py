@@ -7,7 +7,13 @@ from pathlib import Path
 
 import argparse
 
-from .ffmpeg import DEFAULT_AUDIO, DEFAULT_CRF, DEFAULT_PRESET, compose
+from .ffmpeg import (
+    DEFAULT_AUDIO,
+    DEFAULT_CRF,
+    DEFAULT_OUTPUT_DIR,
+    DEFAULT_PRESET,
+    compose,
+)
 from .models import AAC, BURN, COPY, SOFT
 
 
@@ -18,7 +24,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("video", help="source video file")
     parser.add_argument("subtitle", help="bilingual .ass subtitle file")
-    parser.add_argument("-o", "--output", help="output path (default: <video>.final.<ext>)")
+    parser.add_argument(
+        "-o", "--output", help="explicit output path (overrides --output-dir)"
+    )
+    parser.add_argument(
+        "--output-dir",
+        default=DEFAULT_OUTPUT_DIR,
+        help="output root; mirrors <date>/<channel> from the source (default: output/)",
+    )
     parser.add_argument(
         "--mode", choices=[BURN, SOFT], default=BURN,
         help="burn = hard subs into mp4 (default); soft = ASS track in mkv",
@@ -48,6 +61,7 @@ def main(argv: list[str] | None = None) -> int:
         crf=args.crf,
         preset=args.preset,
         audio=args.audio,
+        output_dir=args.output_dir,
         preview_seconds=args.preview,
     )
 

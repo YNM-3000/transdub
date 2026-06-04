@@ -18,9 +18,11 @@ from compose.models import BURN, SOFT
 
 @pytest.fixture
 def media(tmp_path):
-    video = tmp_path / "Clip.mp4"
+    folder = tmp_path / "downloads" / "2026-06-04" / "Chan"
+    folder.mkdir(parents=True)
+    video = folder / "Clip.mp4"
     video.write_bytes(b"video")
-    subs = tmp_path / "Clip.bilingual.ass"
+    subs = folder / "Clip.bilingual.ass"
     subs.write_text("[Script Info]\n", encoding="utf-8")
     return video, subs
 
@@ -36,9 +38,15 @@ class FakeRunner:
         return SimpleNamespace(returncode=self.returncode, stdout="", stderr=self.stderr)
 
 
-def test_default_output_extensions():
-    assert default_output("a/b/Clip.mp4", BURN).name == "Clip.final.mp4"
-    assert default_output("a/b/Clip.mp4", SOFT).name == "Clip.final.mkv"
+def test_default_output_mirrors_date_channel_under_output_root():
+    out = default_output("downloads/2026-06-04/Zeus/Clip.mp4", BURN, "output")
+    assert out == Path("output/2026-06-04/Zeus/Clip.final.mp4")
+    assert default_output("downloads/2026-06-04/Zeus/Clip.mp4", SOFT, "output").suffix == ".mkv"
+
+
+def test_default_output_handles_shallow_path():
+    # No date/channel structure to mirror — file lands directly under the root.
+    assert default_output("Clip.mp4", BURN, "output") == Path("output/Clip.final.mp4")
 
 
 def test_build_burn_command_uses_relative_safe_sub_and_reencodes():
@@ -82,23 +90,26 @@ def test_compose_rejects_unknown_audio(tmp_path):
     assert "unknown audio" in res.error
 
 
-def test_compose_burn_success_runs_from_tempdir(media):
+def test_compose_burn_success_runs_from_tempdir(media, tmp_path):
     video, subs = media
     runner = FakeRunner()
-    res = compose(video, subs, mode=BURN, runner=runner)
+    res = compose(video, subs, mode=BURN, output_dir=tmp_path / "output", runner=runner)
 
     assert res.ok and res.mode == BURN
-    assert res.out_path == video.with_suffix(".final.mp4")
+    # Mirrors <date>/<channel> under the output root.
+    assert res.out_path == tmp_path / "output" / "2026-06-04" / "Chan" / "Clip.final.mp4"
+    assert res.out_path.parent.is_dir()  # created
     cmd, cwd = runner.calls[0]
     assert cwd is not None  # burn runs from the temp dir holding the safe-named sub
     assert "ass=subtitle.ass" in cmd
 
 
-def test_compose_soft_success(media):
+def test_compose_soft_success(media, tmp_path):
     video, subs = media
     runner = FakeRunner()
-    res = compose(video, subs, mode=SOFT, runner=runner)
+    res = compose(video, subs, mode=SOFT, output_dir=tmp_path / "output", runner=runner)
     assert res.ok and res.out_path.suffix == ".mkv"
+    assert res.out_path == tmp_path / "output" / "2026-06-04" / "Chan" / "Clip.final.mkv"
     _, cwd = runner.calls[0]
     assert cwd is None  # soft mux needs no temp dir
 

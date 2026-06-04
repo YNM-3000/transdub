@@ -23,6 +23,7 @@ DEFAULT_CRF = 20
 DEFAULT_PRESET = "medium"
 DEFAULT_AUDIO = AAC
 AUDIO_BITRATE = "192k"
+DEFAULT_OUTPUT_DIR = "output"
 _SAFE_SUB_NAME = "subtitle.ass"
 
 Runner = Callable[..., "subprocess.CompletedProcess[str]"]
@@ -43,11 +44,26 @@ def _default_runner(cmd: list[str], cwd: str | None = None):
     return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
 
 
-def default_output(video_path: str | Path, mode: str = BURN) -> Path:
-    """Final-video path next to the source (`*.final.mp4` / `*.final.mkv`)."""
+def default_output(
+    video_path: str | Path,
+    mode: str = BURN,
+    output_dir: str | Path = DEFAULT_OUTPUT_DIR,
+) -> Path:
+    """Final-video path under `output_dir`, mirroring the download layout.
+
+    `downloads/<date>/<channel>/Title.mp4` →
+    `output/<date>/<channel>/Title.final.<ext>`. The `<date>/<channel>` mirror
+    is taken from the source video's two enclosing directories.
+    """
     video = Path(video_path)
     ext = "mkv" if mode == SOFT else "mp4"
-    return video.with_suffix(f".final.{ext}")
+    name = f"{video.stem}.final.{ext}"
+
+    parts = video.parent.parts
+    if parts and parts[0] == video.parent.anchor and video.parent.anchor:
+        parts = parts[1:]  # drop the filesystem root so the join stays relative
+    mirror = Path(*parts[-2:]) if len(parts) >= 2 else Path()
+    return Path(output_dir) / mirror / name
 
 
 def compose(
@@ -59,13 +75,14 @@ def compose(
     crf: int = DEFAULT_CRF,
     preset: str = DEFAULT_PRESET,
     audio: str = DEFAULT_AUDIO,
+    output_dir: str | Path = DEFAULT_OUTPUT_DIR,
     preview_seconds: int | None = None,
     runner: Runner = _default_runner,
 ) -> ComposeResult:
     """Compose a final video. Never raises — failures are returned."""
     video = Path(video_path)
     subtitle = Path(subtitle_path)
-    out = Path(out_path) if out_path else default_output(video, mode)
+    out = Path(out_path) if out_path else default_output(video, mode, output_dir)
     out.parent.mkdir(parents=True, exist_ok=True)
 
     if audio not in (AAC, COPY):
