@@ -39,6 +39,14 @@ Translate an existing subtitle:
 uv run recreator-translate samples/demo.srt -o out/demo.bilingual.ass
 ```
 
+Compose the final video (burn the bilingual subs into the frames; `--mode
+soft` muxes a selectable ASS track into MKV instead). Use `--preview N` for a
+fast N-second check before a full encode:
+
+```bash
+uv run recreator-compose video.mp4 video.bilingual.ass -o out/final.mp4
+```
+
 The translation backend is pluggable (`--backend`, default `claude`). A local
 LLM backend can be added later without touching the pipeline or CLI.
 
@@ -73,5 +81,6 @@ as sibling packages.
   - `models.py` immutable `Cue`/`Chunk`; `subtitle.py` load + de-roll + chunk;
     `backend.py` `TranslationBackend` protocol; `claude_backend.py` Claude impl;
     `styler.py` bilingual ASS; `pipeline.py` orchestration; `cli.py` entry point
+- `compose/` — ffmpeg burn-in / soft-mux of bilingual subs into a final video
 - `orchestrate/` — composes the stages (download → translate handoff); the seam
   a workflow framework would later replace
