@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 from .backend import MetadataBackend
 from .cover import Runner, _default_runner, cover_timestamp, extract_cover
 from .models import PublishMetadata, PublishPackage
+from .source import SourceInfo, attribution_block
 
 DEFAULT_OUTPUT_DIR = "output"
 
@@ -21,13 +23,18 @@ def mirrored_dir(video_path: Path, output_dir: str | Path) -> Path:
     return Path(output_dir) / mirror
 
 
-def _metadata_dict(metadata: PublishMetadata, source_title: str) -> dict:
-    return {
+def _metadata_dict(
+    metadata: PublishMetadata, source_title: str, source: SourceInfo | None
+) -> dict:
+    data = {
         "title": metadata.title,
         "description": metadata.description,
         "tags": list(metadata.tags),
         "source_title": source_title,
     }
+    if source is not None and not source.is_empty():
+        data["source"] = source.as_dict()
+    return data
 
 
 def build_package(
@@ -36,6 +43,7 @@ def build_package(
     *,
     backend: MetadataBackend,
     source_title: str | None = None,
+    source: SourceInfo | None = None,
     output_dir: str | Path = DEFAULT_OUTPUT_DIR,
     cover_at: float | None = None,
     runner: Runner = _default_runner,
@@ -43,7 +51,8 @@ def build_package(
     """Generate metadata + cover for a video. Never raises — errors returned.
 
     Metadata is required; the cover is best-effort (a failed extraction leaves
-    `cover_path` None but still yields an ok package).
+    `cover_path` None but still yields an ok package). When `source` is given,
+    a deterministic attribution block is appended to the description.
     """
     video = Path(video_path)
     title = source_title or video.stem
@@ -53,12 +62,16 @@ def build_package(
     except Exception as err:
         return PublishPackage(video, ok=False, error=f"metadata: {err}")
 
+    if source is not None and not source.is_empty():
+        combined = f"{metadata.description}\n\n{attribution_block(source)}".strip()
+        metadata = replace(metadata, description=combined)
+
     out_dir = mirrored_dir(video, output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     meta_path = out_dir / f"{video.stem}.metadata.json"
     meta_path.write_text(
-        json.dumps(_metadata_dict(metadata, title), ensure_ascii=False, indent=2),
+        json.dumps(_metadata_dict(metadata, title, source), ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 

@@ -14,6 +14,7 @@ from publish.content import chinese_from_ass
 from publish.cover import cover_timestamp, extract_cover, probe_duration
 from publish.models import PublishMetadata
 from publish.package import build_package, mirrored_dir
+from publish.source import SourceInfo, attribution_block, find_info_json
 
 
 # --- metadata parsing / Claude backend ---------------------------------------
@@ -189,6 +190,28 @@ def test_build_package_writes_metadata_and_cover(final_video, tmp_path):
     assert pkg.metadata_path.parent == tmp_path / "pub" / "2026-06-04" / "Zeus"
 
 
+def test_build_package_appends_source_attribution(final_video, tmp_path):
+    source = SourceInfo(
+        url="https://youtu.be/abc",
+        title="What Exactly Is USB-C",
+        uploader="Zeus",
+        upload_date="20250115",
+    )
+    pkg = build_package(
+        final_video, "内容", backend=FakeBackend(),
+        source=source, output_dir=tmp_path / "p", runner=_cover_runner(),
+    )
+    assert pkg.ok
+    desc = pkg.metadata.description
+    assert "—— 原视频信息 ——" in desc
+    assert "原标题：What Exactly Is USB-C" in desc
+    assert "UP主：Zeus" in desc
+    assert "发布日期：2025-01-15" in desc  # YYYYMMDD formatted
+    assert "原链接：https://youtu.be/abc" in desc
+    data = json.loads(pkg.metadata_path.read_text(encoding="utf-8"))
+    assert data["source"]["url"] == "https://youtu.be/abc"
+
+
 def test_build_package_metadata_failure_is_returned(final_video, tmp_path):
     class Boom:
         def generate(self, *a):
@@ -210,6 +233,38 @@ def test_build_package_cover_failure_is_nonfatal(final_video, tmp_path):
     assert pkg.ok  # metadata still produced
     assert pkg.cover_path is None
     assert pkg.metadata_path.is_file()
+
+
+# --- source attribution ------------------------------------------------------
+
+def test_source_info_from_ytdlp_json(tmp_path):
+    info = tmp_path / "Clip.info.json"
+    info.write_text(json.dumps({
+        "webpage_url": "https://youtu.be/x", "title": "T",
+        "channel": "Ch", "upload_date": "20240102",
+    }), encoding="utf-8")
+    src = SourceInfo.from_ytdlp_json(info)
+    assert src.url == "https://youtu.be/x"
+    assert src.uploader == "Ch"
+    assert src.upload_date == "20240102"
+
+
+def test_attribution_block_omits_missing_fields():
+    block = attribution_block(SourceInfo(url="u", title="t"))
+    assert "原标题：t" in block and "原链接：u" in block
+    assert "UP主" not in block and "发布日期" not in block
+
+
+def test_find_info_json_matches_by_stem_prefix(tmp_path):
+    (tmp_path / "Clip.info.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "Other.info.json").write_text("{}", encoding="utf-8")
+    subtitle = tmp_path / "Clip.bilingual.ass"
+    subtitle.write_text("x", encoding="utf-8")
+    assert find_info_json(subtitle).name == "Clip.info.json"
+
+
+def test_find_info_json_returns_none_when_absent(tmp_path):
+    assert find_info_json(tmp_path / "nope.ass", None) is None
 
 
 # --- CLI ---------------------------------------------------------------------

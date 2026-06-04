@@ -1,0 +1,83 @@
+"""Source-video attribution from the yt-dlp info.json sidecar."""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from pathlib import Path
+
+
+@dataclass(frozen=True, slots=True)
+class SourceInfo:
+    """Original-video attribution fields."""
+
+    url: str | None = None
+    title: str | None = None
+    uploader: str | None = None
+    upload_date: str | None = None  # YYYYMMDD as yt-dlp reports it
+
+    @classmethod
+    def from_ytdlp_json(cls, path: str | Path) -> "SourceInfo":
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        return cls(
+            url=data.get("webpage_url") or data.get("original_url"),
+            title=data.get("title"),
+            uploader=data.get("uploader") or data.get("channel"),
+            upload_date=data.get("upload_date"),
+        )
+
+    def is_empty(self) -> bool:
+        return not any((self.url, self.title, self.uploader, self.upload_date))
+
+    def as_dict(self) -> dict:
+        return {
+            "url": self.url,
+            "title": self.title,
+            "uploader": self.uploader,
+            "upload_date": self.upload_date,
+        }
+
+
+def _format_date(value: str | None) -> str | None:
+    if value and len(value) == 8 and value.isdigit():
+        return f"{value[:4]}-{value[4:6]}-{value[6:]}"
+    return value
+
+
+def attribution_block(source: SourceInfo) -> str:
+    """A Chinese attribution block for the description (deterministic, exact)."""
+    lines = ["—— 原视频信息 ——"]
+    if source.title:
+        lines.append(f"原标题：{source.title}")
+    if source.uploader:
+        lines.append(f"UP主：{source.uploader}")
+    date = _format_date(source.upload_date)
+    if date:
+        lines.append(f"发布日期：{date}")
+    if source.url:
+        lines.append(f"原链接：{source.url}")
+    return "\n".join(lines)
+
+
+def find_info_json(*candidates: str | Path | None) -> Path | None:
+    """Locate a yt-dlp *.info.json near a subtitle/video file.
+
+    Prefers an info.json whose stem prefixes the candidate's name (so it picks
+    the right one when several videos share a directory); falls back to a lone
+    info.json in the directory.
+    """
+    for candidate in candidates:
+        if not candidate:
+            continue
+        path = Path(candidate)
+        folder = path.parent
+        if not folder.is_dir():
+            continue
+        found = sorted(folder.glob("*.info.json"))
+        for info in found:
+            base = info.name[: -len(".info.json")]
+            if path.name.startswith(base):
+                return info
+        if len(found) == 1:
+            return found[0]
+    return None

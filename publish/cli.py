@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from .backend import get_metadata_backend
 from .content import chinese_from_ass
 from .package import DEFAULT_OUTPUT_DIR, build_package
+from .source import SourceInfo, find_info_json
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -31,6 +32,14 @@ def main(argv: list[str] | None = None) -> int:
         "--cover-at", type=float, metavar="SECONDS",
         help="timestamp for the cover frame (default: ~30%% of duration)",
     )
+    parser.add_argument(
+        "--info-json",
+        help="yt-dlp info.json for source attribution (auto-detected near the subtitle)",
+    )
+    parser.add_argument("--source-url", help="override source URL")
+    parser.add_argument("--source-title", help="override original title")
+    parser.add_argument("--uploader", help="override uploader/channel")
+    parser.add_argument("--upload-date", help="override publish date (YYYYMMDD)")
     args = parser.parse_args(argv)
 
     if not Path(args.video).is_file():
@@ -50,10 +59,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {err}", file=sys.stderr)
         return 2
 
+    source = _resolve_source(args)
+
     pkg = build_package(
         args.video,
         content,
         backend=backend,
+        source=source,
         output_dir=args.output_dir,
         cover_at=args.cover_at,
     )
@@ -67,6 +79,22 @@ def main(argv: list[str] | None = None) -> int:
     print(f"    meta:  {pkg.metadata_path}")
     print(f"    cover: {pkg.cover_path}")
     return 0
+
+
+def _resolve_source(args) -> SourceInfo | None:
+    """Build SourceInfo from an info.json (explicit or auto-detected) + overrides."""
+    source = SourceInfo()
+    info_path = args.info_json or find_info_json(args.subtitle, args.video)
+    if info_path and Path(info_path).is_file():
+        source = SourceInfo.from_ytdlp_json(info_path)
+
+    overridden = SourceInfo(
+        url=args.source_url or source.url,
+        title=args.source_title or source.title,
+        uploader=args.uploader or source.uploader,
+        upload_date=args.upload_date or source.upload_date,
+    )
+    return None if overridden.is_empty() else overridden
 
 
 if __name__ == "__main__":
