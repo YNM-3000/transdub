@@ -46,7 +46,18 @@ def test_build_burn_command_uses_relative_safe_sub_and_reencodes():
     assert "-vf" in cmd and "ass=subtitle.ass" in cmd  # relative safe name
     assert cmd[cmd.index("-crf") + 1] == "18"
     assert cmd[cmd.index("-preset") + 1] == "fast"
-    assert cmd[cmd.index("-c:a") + 1] == "copy"  # audio passthrough
+
+
+def test_burn_defaults_to_aac_audio():
+    cmd = build_burn_command(Path("/v.mp4"), Path("/o.mp4"))
+    assert cmd[cmd.index("-c:a") + 1] == "aac"
+    assert "-b:a" in cmd
+
+
+def test_burn_audio_copy_passthrough():
+    cmd = build_burn_command(Path("/v.mp4"), Path("/o.mp4"), audio="copy")
+    assert cmd[cmd.index("-c:a") + 1] == "copy"
+    assert "-b:a" not in cmd
 
 
 def test_build_burn_command_preview_inserts_duration():
@@ -54,10 +65,21 @@ def test_build_burn_command_preview_inserts_duration():
     assert cmd[cmd.index("-t") + 1] == "15"
 
 
-def test_build_soft_command_muxes_ass_track_without_reencode():
+def test_build_soft_command_muxes_ass_track_without_reencoding_video():
     cmd = build_soft_command(Path("/v.mp4"), Path("/s.ass"), Path("/o.mkv"))
     assert cmd[cmd.index("-c:s") + 1] == "ass"
     assert cmd[cmd.index("-c:v") + 1] == "copy"
+    assert cmd[cmd.index("-c:a") + 1] == "aac"  # audio still defaults to aac
+
+
+def test_compose_rejects_unknown_audio(tmp_path):
+    video = tmp_path / "v.mp4"
+    video.write_bytes(b"x")
+    subs = tmp_path / "s.ass"
+    subs.write_text("x")
+    res = compose(video, subs, mode=BURN, audio="mp3", runner=FakeRunner())
+    assert not res.ok
+    assert "unknown audio" in res.error
 
 
 def test_compose_burn_success_runs_from_tempdir(media):

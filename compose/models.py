@@ -8,6 +8,9 @@ from pathlib import Path
 BURN = "burn"  # hard subtitles rendered into the frames (mp4)
 SOFT = "soft"  # selectable ASS subtitle track (mkv)
 
+AAC = "aac"  # transcode audio to AAC (broad platform compatibility)
+COPY = "copy"  # passthrough the source audio stream as-is
+
 
 @dataclass(frozen=True, slots=True)
 class ComposeResult:

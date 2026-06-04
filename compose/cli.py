@@ -7,8 +7,8 @@ from pathlib import Path
 
 import argparse
 
-from .ffmpeg import DEFAULT_CRF, DEFAULT_PRESET, compose
-from .models import BURN, SOFT
+from .ffmpeg import DEFAULT_AUDIO, DEFAULT_CRF, DEFAULT_PRESET, compose
+from .models import AAC, BURN, COPY, SOFT
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -25,6 +25,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--crf", type=int, default=DEFAULT_CRF, help="x264 CRF (burn mode)")
     parser.add_argument("--preset", default=DEFAULT_PRESET, help="x264 preset (burn mode)")
+    parser.add_argument(
+        "--audio", choices=[AAC, COPY], default=DEFAULT_AUDIO,
+        help="aac = transcode for platform compatibility (default); copy = passthrough",
+    )
     parser.add_argument(
         "--preview", type=int, metavar="SECONDS",
         help="only render the first N seconds (fast check before a full encode)",
@@ -43,6 +47,7 @@ def main(argv: list[str] | None = None) -> int:
         mode=args.mode,
         crf=args.crf,
         preset=args.preset,
+        audio=args.audio,
         preview_seconds=args.preview,
     )
 
