@@ -1,0 +1,16 @@
+1
+00:00:01,000 --> 00:00:03,500
+Have you ever wondered why elevator buttons
+are placed at that exact height?
+
+2
+00:00:03,600 --> 00:00:06,000
+It's not random. It's designed for accessibility.
+
+3
+00:00:06,200 --> 00:00:09,000
+The same logic applies to door handles and light switches.
+
+4
+00:00:09,200 --> 00:00:12,000
+Small design choices shape how we move through the world.
