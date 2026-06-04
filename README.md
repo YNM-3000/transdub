@@ -47,6 +47,13 @@ fast N-second check before a full encode:
 uv run recreator-compose video.mp4 video.bilingual.ass -o out/final.mp4
 ```
 
+Generate the upload package (Chinese title/description/tags + a cover frame)
+into `output/<date>/<channel>/`:
+
+```bash
+uv run recreator-publish video.mp4 -s video.bilingual.ass
+```
+
 The translation backend is pluggable (`--backend`, default `claude`). A local
 LLM backend can be added later without touching the pipeline or CLI.
 
@@ -82,5 +89,6 @@ as sibling packages.
     `backend.py` `TranslationBackend` protocol; `claude_backend.py` Claude impl;
     `styler.py` bilingual ASS; `pipeline.py` orchestration; `cli.py` entry point
 - `compose/` — ffmpeg burn-in / soft-mux of bilingual subs into a final video
+- `publish/` — Chinese title/description/tags (pluggable LLM) + cover frame
 - `orchestrate/` — composes the stages (download → translate handoff); the seam
   a workflow framework would later replace
