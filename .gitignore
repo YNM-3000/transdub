@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 .env
 out/
+downloads/
 .pytest_cache/
 .coverage
 htmlcov/
