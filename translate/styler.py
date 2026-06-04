@@ -1,9 +1,8 @@
-"""Build a bilingual ASS subtitle: original on top, Chinese below.
+"""Build a bilingual ASS subtitle: Chinese on top, original below.
 
-Per the spec, the new subtitle keeps a clean, consistent style with the
-Chinese font slightly larger than the original. YouTube captions carry no
-rich styling, so we apply one tidy default style rather than reproducing the
-source pixel-for-pixel.
+A single fixed style is applied — white fill with a black outline — with the
+Chinese font larger than the (smaller) original. YouTube captions carry no
+rich styling, so we apply one tidy default rather than reproducing the source.
 """
 
 from __future__ import annotations
@@ -12,12 +11,18 @@ import re
 
 import pysubs2
 
-from .models import Cue
-
-EN_FONTSIZE = 16
-ZH_FONTSIZE = 20
+# Chinese is the primary line: larger on top; English smaller underneath.
+ZH_FONTSIZE = 22
+EN_FONTSIZE = 13
 FONT_NAME = "Arial"
 ALIGN_BOTTOM_CENTER = pysubs2.Alignment.BOTTOM_CENTER
+
+# Static look: white text, black outline (opaque; ASS alpha 0 == opaque).
+WHITE = pysubs2.Color(255, 255, 255, 0)
+BLACK = pysubs2.Color(0, 0, 0, 0)
+OUTLINE_WIDTH = 2.0
+
+from .models import Cue
 
 _WS = re.compile(r"\s+")
 
@@ -43,15 +48,19 @@ def build_bilingual(cues: list[Cue], translations: list[str]) -> pysubs2.SSAFile
     style.fontname = FONT_NAME
     style.fontsize = ZH_FONTSIZE
     style.alignment = ALIGN_BOTTOM_CENTER
-    style.outline = 1.5
-    style.shadow = 0.5
+    style.primarycolor = WHITE
+    style.outlinecolor = BLACK
+    style.backcolor = BLACK
+    style.borderstyle = 1  # outline + drop shadow
+    style.outline = OUTLINE_WIDTH
+    style.shadow = 0.0
     style.marginv = 24
 
     for cue, zh in zip(cues, translations):
         en_line = _flatten(cue.text)
         zh_line = _flatten(zh)
-        # English on top (smaller), Chinese below (larger), one event per cue.
-        text = f"{{\\fs{EN_FONTSIZE}}}{en_line}\\N{{\\fs{ZH_FONTSIZE}}}{zh_line}"
+        # Chinese on top (larger), English below (smaller), one event per cue.
+        text = f"{{\\fs{ZH_FONTSIZE}}}{zh_line}\\N{{\\fs{EN_FONTSIZE}}}{en_line}"
         subs.append(
             pysubs2.SSAEvent(
                 start=cue.start_ms,
