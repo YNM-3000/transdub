@@ -28,18 +28,24 @@ write platform-native metadata.
 Guidelines:
 - Title: one catchy line in Chinese, <= 30 characters, accurate, not
   exaggerated clickbait.
+- Category: ONE best-fit category for grouping into collections. Prefer one of:
+  生活技巧、产品设计、科技数码、汽车交通、健康医学、美食料理、居家家装、
+  自然科学、历史人文、心理行为、商业经济、其他。If none fits, coin a short
+  Chinese category of your own.
 - Description: 2-4 sentences in Chinese summarizing the content with a hook;
   may note it is translated/搬运 overseas content.
 - Tags: 5-10 relevant Chinese keywords.
 
-Output format, EXACTLY these three labeled sections, nothing else:
+Output format, EXACTLY these labeled sections, nothing else:
 TITLE: <一行中文标题>
+CATEGORY: <一个最合适的中文分类>
 TAGS: 标签1, 标签2, 标签3
 DESCRIPTION:
 <中文简介，可多行>
 """
 
 _TITLE = re.compile(r"^\s*TITLE\s*[:：]\s*(.+?)\s*$", re.MULTILINE)
+_CATEGORY = re.compile(r"^\s*CATEGORY\s*[:：]\s*(.+?)\s*$", re.MULTILINE)
 _TAGS = re.compile(r"^\s*TAGS\s*[:：]\s*(.+?)\s*$", re.MULTILINE)
 _DESC = re.compile(r"DESCRIPTION\s*[:：]\s*\n?(.*)$", re.DOTALL)
 _TAG_SPLIT = re.compile(r"[,，、]")
@@ -115,6 +121,9 @@ def _parse_metadata(text: str) -> PublishMetadata:
         raise ValueError(f"no TITLE in metadata response: {text[:160]!r}")
     title = title_m.group(1).strip()
 
+    category_m = _CATEGORY.search(text)
+    category = category_m.group(1).strip() if category_m else ""
+
     tags: tuple[str, ...] = ()
     tags_m = _TAGS.search(text)
     if tags_m:
@@ -123,4 +132,4 @@ def _parse_metadata(text: str) -> PublishMetadata:
     desc_m = _DESC.search(text)
     description = desc_m.group(1).strip() if desc_m else ""
 
-    return PublishMetadata(title=title, description=description, tags=tags)
+    return PublishMetadata(title=title, description=description, tags=tags, category=category)

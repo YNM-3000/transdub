@@ -91,6 +91,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     print(f"✓ {pkg.metadata.title}")
+    if pkg.metadata.category:
+        print(f"    category: {pkg.metadata.category}")
     print(f"    tags:  {', '.join(pkg.metadata.tags)}")
     print(f"    meta:  {pkg.metadata_path}")
     print(f"    cover: {pkg.cover_path}")

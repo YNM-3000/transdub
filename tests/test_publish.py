@@ -33,6 +33,7 @@ from publish.source import (
 
 SAMPLE = """\
 TITLE: USB-C 的真相：为什么苹果被迫妥协
+CATEGORY: 科技数码
 TAGS: USB-C, 苹果, 数码, 充电线, 科技
 DESCRIPTION:
 一个关于 USB-C 接口的科普视频。
@@ -43,8 +44,14 @@ DESCRIPTION:
 def test_parse_metadata_extracts_all_sections():
     md = _parse_metadata(SAMPLE)
     assert md.title == "USB-C 的真相：为什么苹果被迫妥协"
+    assert md.category == "科技数码"
     assert md.tags == ("USB-C", "苹果", "数码", "充电线", "科技")
     assert "统一了混乱的线缆世界" in md.description
+
+
+def test_parse_metadata_category_optional():
+    md = _parse_metadata("TITLE: t\nTAGS: a, b\nDESCRIPTION:\nx")
+    assert md.category == ""  # absent CATEGORY is fine
 
 
 def test_parse_metadata_handles_chinese_punctuation_separators():
@@ -155,7 +162,7 @@ class FakeBackend:
 
     def generate(self, source_title, content):
         self.calls.append((source_title, content))
-        return PublishMetadata("中文标题", "简介内容", ("标签1", "标签2"))
+        return PublishMetadata("中文标题", "简介内容", ("标签1", "标签2"), category="科技数码")
 
 
 @pytest.fixture
@@ -195,6 +202,7 @@ def test_build_package_writes_metadata_and_cover(final_video, tmp_path):
     assert pkg.metadata_path.is_file()
     data = json.loads(pkg.metadata_path.read_text(encoding="utf-8"))
     assert data["title"] == "中文标题"
+    assert data["category"] == "科技数码"
     assert data["tags"] == ["标签1", "标签2"]
     assert data["source_title"] == "Clip.final"
     assert pkg.cover_path is not None and pkg.cover_path.is_file()

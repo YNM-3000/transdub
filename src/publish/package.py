@@ -37,6 +37,7 @@ def _metadata_dict(
 ) -> dict:
     data = {
         "title": metadata.title,
+        "category": metadata.category,
         "description": metadata.description,
         "tags": list(metadata.tags),
         "source_title": source_title,

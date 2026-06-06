@@ -13,6 +13,7 @@ class PublishMetadata:
     title: str
     description: str
     tags: tuple[str, ...]
+    category: str = ""  # single best-fit category for grouping/collections
 
 
 @dataclass(frozen=True, slots=True)
