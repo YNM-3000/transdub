@@ -5,7 +5,14 @@ from __future__ import annotations
 import pytest
 
 from translate.models import Cue
-from translate.styler import BLACK, EN_FONTSIZE, WHITE, ZH_FONTSIZE, build_bilingual
+from translate.styler import (
+    BLACK,
+    EN_FONTSIZE,
+    MARGIN_V,
+    WHITE,
+    ZH_FONTSIZE,
+    build_bilingual,
+)
 
 
 def test_build_bilingual_produces_one_event_per_cue(sample_cues):
@@ -45,6 +52,7 @@ def test_default_style_is_configured():
     style = subs.styles["Default"]
     assert style.fontsize == ZH_FONTSIZE
     assert style.alignment == 2
+    assert style.marginv == MARGIN_V  # sits low near the bottom edge
 
 
 def test_style_is_white_with_black_outline():

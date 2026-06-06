@@ -21,6 +21,8 @@ ALIGN_BOTTOM_CENTER = pysubs2.Alignment.BOTTOM_CENTER
 WHITE = pysubs2.Color(255, 255, 255, 0)
 BLACK = pysubs2.Color(0, 0, 0, 0)
 OUTLINE_WIDTH = 2.0
+# Vertical margin from the bottom edge — smaller sits the subtitle lower.
+MARGIN_V = 12
 
 from .models import Cue
 
@@ -54,7 +56,7 @@ def build_bilingual(cues: list[Cue], translations: list[str]) -> pysubs2.SSAFile
     style.borderstyle = 1  # outline + drop shadow
     style.outline = OUTLINE_WIDTH
     style.shadow = 0.0
-    style.marginv = 24
+    style.marginv = MARGIN_V
 
     for cue, zh in zip(cues, translations):
         en_line = _flatten(cue.text)

@@ -3,8 +3,16 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
+
+# Repo URLs on the common git hosts (owner/repo), scheme required.
+_REPO = re.compile(
+    r"https?://(?:www\.)?(?:github\.com|gitlab\.com|bitbucket\.org)"
+    r"/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,6 +23,7 @@ class SourceInfo:
     title: str | None = None
     uploader: str | None = None
     upload_date: str | None = None  # YYYYMMDD as yt-dlp reports it
+    description: str | None = None
 
     @classmethod
     def from_ytdlp_json(cls, path: str | Path) -> "SourceInfo":
@@ -24,6 +33,7 @@ class SourceInfo:
             title=data.get("title"),
             uploader=data.get("uploader") or data.get("channel"),
             upload_date=data.get("upload_date"),
+            description=data.get("description"),
         )
 
     def is_empty(self) -> bool:
@@ -36,6 +46,18 @@ class SourceInfo:
             "uploader": self.uploader,
             "upload_date": self.upload_date,
         }
+
+
+def extract_repos(text: str | None) -> tuple[str, ...]:
+    """Pull git-repo URLs from free text, de-duplicated, order preserved."""
+    if not text:
+        return ()
+    seen: list[str] = []
+    for match in _REPO.finditer(text):
+        url = match.group(0).rstrip(".,);]")
+        if url not in seen:
+            seen.append(url)
+    return tuple(seen)
 
 
 def _format_date(value: str | None) -> str | None:

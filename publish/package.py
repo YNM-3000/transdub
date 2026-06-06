@@ -15,7 +15,7 @@ from .cover import (
     extract_cover,
 )
 from .models import PublishMetadata, PublishPackage
-from .source import SourceInfo, attribution_block
+from .source import SourceInfo, attribution_block, extract_repos
 
 DEFAULT_OUTPUT_DIR = "output"
 
@@ -30,7 +30,10 @@ def mirrored_dir(video_path: Path, output_dir: str | Path) -> Path:
 
 
 def _metadata_dict(
-    metadata: PublishMetadata, source_title: str, source: SourceInfo | None
+    metadata: PublishMetadata,
+    source_title: str,
+    source: SourceInfo | None,
+    repos: tuple[str, ...],
 ) -> dict:
     data = {
         "title": metadata.title,
@@ -38,9 +41,15 @@ def _metadata_dict(
         "tags": list(metadata.tags),
         "source_title": source_title,
     }
+    if repos:
+        data["repos"] = list(repos)
     if source is not None and not source.is_empty():
         data["source"] = source.as_dict()
     return data
+
+
+def _repos_block(repos: tuple[str, ...]) -> str:
+    return "—— 相关项目 ——\n" + "\n".join(repos)
 
 
 def build_package(
@@ -74,16 +83,21 @@ def build_package(
     except Exception as err:
         return PublishPackage(video, ok=False, error=f"metadata: {err}")
 
+    repos = extract_repos(source.description) if source else ()
+    parts = [metadata.description]
+    if repos:
+        parts.append(_repos_block(repos))
     if source is not None and not source.is_empty():
-        combined = f"{metadata.description}\n\n{attribution_block(source)}".strip()
-        metadata = replace(metadata, description=combined)
+        parts.append(attribution_block(source))
+    if len(parts) > 1:
+        metadata = replace(metadata, description="\n\n".join(p for p in parts if p))
 
     out_dir = mirrored_dir(video, output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     meta_path = out_dir / f"{video.stem}.metadata.json"
     meta_path.write_text(
-        json.dumps(_metadata_dict(metadata, title, source), ensure_ascii=False, indent=2),
+        json.dumps(_metadata_dict(metadata, title, source, repos), ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 

@@ -22,6 +22,7 @@ from publish.package import build_package, mirrored_dir
 from publish.source import (
     SourceInfo,
     attribution_block,
+    extract_repos,
     find_info_json,
     source_thumbnail_for,
     source_video_for,
@@ -223,6 +224,22 @@ def test_build_package_appends_source_attribution(final_video, tmp_path):
     assert data["source"]["url"] == "https://youtu.be/abc"
 
 
+def test_build_package_appends_repos_from_source_description(final_video, tmp_path):
+    source = SourceInfo(
+        url="https://youtu.be/x", title="T", uploader="U",
+        description="Project: https://github.com/karpathy/autoresearch — enjoy!",
+    )
+    pkg = build_package(
+        final_video, "内容", backend=FakeBackend(),
+        source=source, output_dir=tmp_path / "p", runner=_cover_runner(),
+    )
+    assert pkg.ok
+    assert "—— 相关项目 ——" in pkg.metadata.description
+    assert "https://github.com/karpathy/autoresearch" in pkg.metadata.description
+    data = json.loads(pkg.metadata_path.read_text(encoding="utf-8"))
+    assert data["repos"] == ["https://github.com/karpathy/autoresearch"]
+
+
 def test_build_package_metadata_failure_is_returned(final_video, tmp_path):
     class Boom:
         def generate(self, *a):
@@ -264,6 +281,39 @@ def test_attribution_block_omits_missing_fields():
     block = attribution_block(SourceInfo(url="u", title="t"))
     assert "原标题：t" in block and "原链接：u" in block
     assert "UP主" not in block and "发布日期" not in block
+
+
+def test_extract_repos_finds_dedupes_and_strips():
+    text = (
+        "Code: https://github.com/karpathy/nanochat and "
+        "https://github.com/karpathy/nanochat (again). "
+        "Also see https://gitlab.com/group/proj. "
+        "Not a repo: https://github.com/karpathy"
+    )
+    repos = extract_repos(text)
+    assert repos == (
+        "https://github.com/karpathy/nanochat",
+        "https://gitlab.com/group/proj",
+    )
+
+
+def test_extract_repos_empty():
+    assert extract_repos(None) == ()
+    assert extract_repos("no links here") == ()
+
+
+def test_cli_resolve_source_preserves_description(tmp_path):
+    from types import SimpleNamespace
+    from publish.cli import _resolve_source
+
+    info = tmp_path / "Clip.info.json"
+    info.write_text(json.dumps({
+        "webpage_url": "u", "title": "t",
+        "description": "repo https://github.com/a/b",
+    }), encoding="utf-8")
+    args = SimpleNamespace(source_url=None, source_title=None, uploader=None, upload_date=None)
+    src = _resolve_source(args, info)
+    assert src.description and "github.com/a/b" in src.description
 
 
 def test_find_info_json_matches_by_stem_prefix(tmp_path):

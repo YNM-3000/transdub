@@ -108,6 +108,7 @@ def _resolve_source(args, info_path) -> SourceInfo | None:
         title=args.source_title or source.title,
         uploader=args.uploader or source.uploader,
         upload_date=args.upload_date or source.upload_date,
+        description=source.description,  # keep for repo extraction
     )
     return None if overridden.is_empty() else overridden
 
