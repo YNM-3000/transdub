@@ -110,12 +110,12 @@ uv run pytest --cov=translate
 
 ## Architecture
 
-Flat, feature-named top-level packages (no `src/` nesting). Each stage is a
-pure function with clear inputs/outputs so the flow can later move onto a
-workflow framework. Future stages (`monitor/`, `dubbing/`, `compose/`, …) join
-as sibling packages.
+Feature-named packages live under `src/` (so code is separate from runtime
+dirs like `downloads/` and `output/`); `tests/` is at the repo root. Each
+stage is a pure function with clear inputs/outputs so the flow can later move
+onto a workflow framework. Future stages (`dubbing/`, …) join as siblings.
 
-- `download/` — yt-dlp wrapper → video + subtitles, parallel downloads
+- `src/download/` — yt-dlp wrapper → video + subtitles, parallel downloads
 - `translate/` — subtitle → bilingual ASS
   - `models.py` immutable `Cue`/`Chunk`; `subtitle.py` load + de-roll + chunk;
     `backend.py` `TranslationBackend` protocol; `claude_backend.py` Claude impl;
