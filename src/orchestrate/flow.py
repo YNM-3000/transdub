@@ -14,6 +14,7 @@ import logging
 import time
 from dataclasses import dataclass
 
+import obs
 from compose.ffmpeg import compose
 from compose.models import ComposeResult
 from data.models import SourceRecord
@@ -125,7 +126,7 @@ def run_full(
     cmp: ComposeResult = _timed("compose", lambda: retry(
         lambda: compose(
             dl.video_path, tr.ass_path, output_dir=output_dir,
-            on_progress=lambda pct: log.info("  compose: %d%%", pct),
+            on_progress=obs.make_progress("  compose", log),
         ),
         policy, success=lambda r: r.ok, **retry_kw,
     ))

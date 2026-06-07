@@ -68,7 +68,7 @@ def main(argv: list[str] | None = None) -> int:
         audio=args.audio,
         output_dir=args.output_dir,
         preview_seconds=args.preview,
-        on_progress=lambda pct: _log.info("compose: %d%%", pct),
+        on_progress=obs.make_progress("compose", _log),
     )
 
     if not result.ok:

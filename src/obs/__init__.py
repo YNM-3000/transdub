@@ -31,3 +31,24 @@ def add_verbose_arg(parser: argparse.ArgumentParser) -> None:
 
 def logger(name: str) -> logging.Logger:
     return logging.getLogger(f"{ROOT}.{name}")
+
+
+def make_progress(label: str, log: logging.Logger | None = None):
+    """Return a progress sink `fn(pct)`.
+
+    On a terminal it rewrites a single line (`\\r{label}: {pct}%`), finishing
+    with a newline at 100%. When stderr isn't a TTY (piped/background), it
+    falls back to one log line per update so file logs stay readable.
+    """
+    sink_log = log or logger("progress")
+    is_tty = sys.stderr.isatty()
+
+    def progress(pct: int) -> None:
+        if is_tty:
+            end = "\n" if pct >= 100 else ""
+            sys.stderr.write(f"\r{label}: {pct}%{end}")
+            sys.stderr.flush()
+        else:
+            sink_log.info("%s: %d%%", label, pct)
+
+    return progress
