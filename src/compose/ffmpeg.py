@@ -10,6 +10,8 @@ full-width characters never need filtergraph escaping.
 
 from __future__ import annotations
 
+import logging
+import re
 import shutil
 import subprocess
 import tempfile
@@ -18,7 +20,10 @@ from typing import Callable
 
 from .models import AAC, BURN, COPY, SOFT, ComposeResult
 
+log = logging.getLogger("recreator.compose")
+
 FFMPEG = "ffmpeg"
+FFPROBE = "ffprobe"
 DEFAULT_CRF = 20
 DEFAULT_PRESET = "medium"
 DEFAULT_AUDIO = AAC
@@ -27,6 +32,15 @@ DEFAULT_OUTPUT_DIR = "output"
 _SAFE_SUB_NAME = "subtitle.ass"
 
 Runner = Callable[..., "subprocess.CompletedProcess[str]"]
+ProgressFn = Callable[[int], None]
+
+_PROGRESS_US = re.compile(r"out_time_us=(\d+)")
+
+
+def _parse_progress_us(line: str) -> int | None:
+    """Parse ffmpeg `-progress` output, returning encoded microseconds."""
+    match = _PROGRESS_US.search(line)
+    return int(match.group(1)) if match else None
 
 
 def _audio_args(audio: str) -> list[str]:
@@ -77,9 +91,13 @@ def compose(
     audio: str = DEFAULT_AUDIO,
     output_dir: str | Path = DEFAULT_OUTPUT_DIR,
     preview_seconds: int | None = None,
+    on_progress: ProgressFn | None = None,
     runner: Runner = _default_runner,
 ) -> ComposeResult:
-    """Compose a final video. Never raises — failures are returned."""
+    """Compose a final video. Never raises — failures are returned.
+
+    `on_progress(pct)` (burn mode) receives encode-progress percentages.
+    """
     video = Path(video_path)
     subtitle = Path(subtitle_path)
     out = Path(out_path) if out_path else default_output(video, mode, output_dir)
@@ -90,7 +108,7 @@ def compose(
     if mode == SOFT:
         return _mux_soft(video, subtitle, out, audio, preview_seconds, runner)
     if mode == BURN:
-        return _burn(video, subtitle, out, crf, preset, audio, preview_seconds, runner)
+        return _burn(video, subtitle, out, crf, preset, audio, preview_seconds, on_progress, runner)
     return ComposeResult(video, subtitle, out, mode, ok=False, error=f"unknown mode: {mode!r}")
 
 
@@ -102,9 +120,13 @@ def build_burn_command(
     audio: str = DEFAULT_AUDIO,
     preview_seconds: int | None = None,
     sub_name: str = _SAFE_SUB_NAME,
+    progress: bool = False,
 ) -> list[str]:
     """ffmpeg argv for burning subs. `sub_name` is resolved relative to cwd."""
-    cmd = [FFMPEG, "-y", "-i", str(video.resolve())]
+    cmd = [FFMPEG, "-y"]
+    if progress:
+        cmd += ["-progress", "pipe:1", "-nostats"]
+    cmd += ["-i", str(video.resolve())]
     if preview_seconds:
         cmd += ["-t", str(preview_seconds)]
     cmd += [
@@ -135,17 +157,56 @@ def build_soft_command(
     return cmd
 
 
-def _burn(video, subtitle, out, crf, preset, audio, preview_seconds, runner) -> ComposeResult:
+def _burn(video, subtitle, out, crf, preset, audio, preview_seconds, on_progress, runner) -> ComposeResult:
     tmpdir = Path(tempfile.mkdtemp(prefix="recreator-compose-"))
     try:
         shutil.copyfile(subtitle, tmpdir / _SAFE_SUB_NAME)
+        if on_progress is not None:
+            cmd = build_burn_command(video, out, crf, preset, audio, preview_seconds, progress=True)
+            log.debug("ffmpeg: %s", " ".join(cmd))
+            duration = float(preview_seconds) if preview_seconds else _probe_duration(video, runner)
+            ok, err = _run_with_progress(cmd, str(tmpdir), duration, on_progress)
+            return ComposeResult(video, subtitle, out, BURN, ok=ok, error=err)
         cmd = build_burn_command(video, out, crf, preset, audio, preview_seconds)
+        log.debug("ffmpeg: %s", " ".join(cmd))
         proc = runner(cmd, cwd=str(tmpdir))
         return _result(video, subtitle, out, BURN, proc)
     except Exception as err:
         return ComposeResult(video, subtitle, out, BURN, ok=False, error=str(err))
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def _probe_duration(video: Path, runner: Runner) -> float | None:
+    cmd = [
+        FFPROBE, "-v", "error", "-show_entries", "format=duration",
+        "-of", "default=nw=1:nk=1", str(video.resolve()),
+    ]
+    try:
+        return float(runner(cmd).stdout.strip())
+    except Exception:
+        return None
+
+
+def _run_with_progress(cmd, cwd, duration, on_progress) -> tuple[bool, str | None]:
+    """Stream ffmpeg `-progress`, reporting percentage against `duration`."""
+    proc = subprocess.Popen(
+        cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
+    last = -10
+    for line in proc.stdout or ():
+        micros = _parse_progress_us(line)
+        if micros is not None and duration:
+            pct = min(99, int(micros / 1_000_000 / duration * 100))
+            if pct >= last + 10:
+                last = pct
+                on_progress(pct)
+    proc.wait()
+    if proc.returncode == 0:
+        on_progress(100)
+        return True, None
+    err = (proc.stderr.read() if proc.stderr else "") or ""
+    return False, err.strip()[-800:]
 
 
 def _mux_soft(video, subtitle, out, audio, preview_seconds, runner) -> ComposeResult:

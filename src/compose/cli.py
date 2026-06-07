@@ -7,6 +7,7 @@ from pathlib import Path
 
 import argparse
 
+import obs
 from .ffmpeg import (
     DEFAULT_AUDIO,
     DEFAULT_CRF,
@@ -15,6 +16,8 @@ from .ffmpeg import (
     compose,
 )
 from .models import AAC, BURN, COPY, SOFT
+
+_log = obs.logger("compose")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -46,7 +49,9 @@ def main(argv: list[str] | None = None) -> int:
         "--preview", type=int, metavar="SECONDS",
         help="only render the first N seconds (fast check before a full encode)",
     )
+    obs.add_verbose_arg(parser)
     args = parser.parse_args(argv)
+    obs.configure(args.verbose)
 
     for path in (args.video, args.subtitle):
         if not Path(path).is_file():
@@ -63,6 +68,7 @@ def main(argv: list[str] | None = None) -> int:
         audio=args.audio,
         output_dir=args.output_dir,
         preview_seconds=args.preview,
+        on_progress=lambda pct: _log.info("compose: %d%%", pct),
     )
 
     if not result.ok:

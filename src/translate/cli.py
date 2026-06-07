@@ -9,6 +9,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+import obs
 from .backend import get_backend
 from .pipeline import translate_file
 
@@ -39,7 +40,9 @@ def main(argv: list[str] | None = None) -> int:
         action="store_false",
         help="do not de-roll YouTube auto-captions before translating",
     )
+    obs.add_verbose_arg(parser)
     args = parser.parse_args(argv)
+    obs.configure(args.verbose)
 
     in_path = args.input
     if not Path(in_path).is_file():

@@ -10,6 +10,8 @@ Note: this autopilot bypasses the human subtitle-review gate. Use
 
 from __future__ import annotations
 
+import logging
+import time
 from dataclasses import dataclass
 
 from compose.ffmpeg import compose
@@ -27,6 +29,8 @@ from .models import PipelineResult
 from .pipeline import translate_download
 from .retry import RetryPolicy, retry
 
+log = logging.getLogger("recreator.flow")
+
 # Terminal statuses.
 COMPLETED = "completed"
 AWAITING_REVIEW = "awaiting_review"
@@ -34,6 +38,16 @@ DOWNLOAD_FAILED = "download_failed"
 TRANSLATE_FAILED = "translate_failed"
 COMPOSE_FAILED = "compose_failed"
 PUBLISH_FAILED = "publish_failed"
+
+
+def _timed(name, thunk):
+    """Log a stage notice + elapsed time around a stage call."""
+    log.info("▶ %s …", name)
+    started = time.monotonic()
+    result = thunk()
+    ok = getattr(result, "ok", True)
+    log.info("%s %s (%.1fs)", "✓" if ok else "✗", name, time.monotonic() - started)
+    return result
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,12 +89,13 @@ def run_full(
 ) -> FlowResult:
     """Run a video end to end. Never raises — failures land in FlowResult."""
     retry_kw = {"sleep": sleep} if sleep is not None else {}
+    log.info("processing %s", url)
 
     # 1. Download
-    dl: DownloadResult = retry(
+    dl: DownloadResult = _timed("download", lambda: retry(
         lambda: download_one(url, **(download_kwargs or {})),
         policy, success=lambda r: r.ok, **retry_kw,
-    )
+    ))
     if not dl.ok:
         return FlowResult(url, DOWNLOAD_FAILED, download=dl, error=dl.error)
 
@@ -90,14 +105,15 @@ def run_full(
         try:
             store.record_source(_source_record(dl.info))
             data_recorded = True
+            log.debug("recorded source metrics for %s", dl.info.id)
         except Exception:
             data_recorded = False
 
     # 2. Translate
-    tr: PipelineResult = retry(
+    tr: PipelineResult = _timed("translate", lambda: retry(
         lambda: translate_download(dl, backend),
         policy, success=lambda r: r.ok, **retry_kw,
-    )
+    ))
     if not tr.ok:
         return FlowResult(url, TRANSLATE_FAILED, download=dl, translation=tr,
                           data_recorded=data_recorded, error=tr.error)
@@ -106,10 +122,13 @@ def run_full(
                           data_recorded=data_recorded)
 
     # 3. Compose
-    cmp: ComposeResult = retry(
-        lambda: compose(dl.video_path, tr.ass_path, output_dir=output_dir),
+    cmp: ComposeResult = _timed("compose", lambda: retry(
+        lambda: compose(
+            dl.video_path, tr.ass_path, output_dir=output_dir,
+            on_progress=lambda pct: log.info("  compose: %d%%", pct),
+        ),
         policy, success=lambda r: r.ok, **retry_kw,
-    )
+    ))
     if not cmp.ok:
         return FlowResult(url, COMPOSE_FAILED, download=dl, translation=tr,
                           compose=cmp, data_recorded=data_recorded, error=cmp.error)
@@ -123,14 +142,14 @@ def run_full(
         info_json = find_info_json(dl.subtitle_path, dl.video_path)
         source = SourceInfo.from_ytdlp_json(info_json) if info_json else None
         content = chinese_from_ass(tr.ass_path)
-        pkg = retry(
+        pkg = _timed("publish", lambda: retry(
             lambda: build_package(
                 cmp.out_path, content, backend=metadata_backend, source=source,
                 thumbnail=source_thumbnail_for(info_json), cover_video=dl.video_path,
                 output_dir=output_dir,
             ),
             policy, success=lambda r: r.ok, **retry_kw,
-        )
+        ))
         if not pkg.ok:
             return FlowResult(url, PUBLISH_FAILED, download=dl, translation=tr,
                               compose=cmp, publish=pkg, data_recorded=data_recorded,

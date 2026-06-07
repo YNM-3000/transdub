@@ -73,6 +73,18 @@ def test_build_burn_command_preview_inserts_duration():
     assert cmd[cmd.index("-t") + 1] == "15"
 
 
+def test_build_burn_command_progress_flag():
+    cmd = build_burn_command(Path("/v.mp4"), Path("/o.mp4"), progress=True)
+    assert "-progress" in cmd and "pipe:1" in cmd and "-nostats" in cmd
+    assert "-progress" not in build_burn_command(Path("/v.mp4"), Path("/o.mp4"))
+
+
+def test_parse_progress_us():
+    from compose.ffmpeg import _parse_progress_us
+    assert _parse_progress_us("out_time_us=12500000") == 12500000
+    assert _parse_progress_us("frame=10") is None
+
+
 def test_build_soft_command_muxes_ass_track_without_reencoding_video():
     cmd = build_soft_command(Path("/v.mp4"), Path("/s.ass"), Path("/o.mkv"))
     assert cmd[cmd.index("-c:s") + 1] == "ass"

@@ -6,6 +6,7 @@ testable with a fake backend and unaffected by which engine is used.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from .backend import TranslationBackend
@@ -13,11 +14,16 @@ from .models import Cue
 from .styler import build_bilingual
 from .subtitle import chunk_cues, load_cues
 
+log = logging.getLogger("recreator.translate")
+
 
 def translate_cues(cues: list[Cue], backend: TranslationBackend) -> list[str]:
     """Translate every cue, preserving order and one-to-one mapping."""
+    chunks = chunk_cues(cues)
+    total = len(chunks)
+    log.info("translate: %d cues in %d chunks", len(cues), total)
     translations: list[str] = []
-    for chunk in chunk_cues(cues):
+    for i, chunk in enumerate(chunks, start=1):
         source = [c.text for c in chunk.cues]
         translated = backend.translate_chunk(source, chunk.context)
         if len(translated) != len(source):
@@ -25,6 +31,7 @@ def translate_cues(cues: list[Cue], backend: TranslationBackend) -> list[str]:
                 f"backend returned {len(translated)} lines for {len(source)} cues"
             )
         translations.extend(translated)
+        log.info("translate: chunk %d/%d (%d%%)", i, total, round(i * 100 / total))
     return translations
 
 

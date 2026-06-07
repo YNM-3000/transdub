@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import glob
 import json
+import logging
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date as _date
@@ -17,6 +18,8 @@ from pathlib import Path
 from typing import Callable
 
 from .models import DownloadResult, VideoInfo
+
+log = logging.getLogger("recreator.download")
 
 YTDLP = "yt-dlp"
 # Prefer <=1080p; merge to mp4. Falls back gracefully if the exact combo is
@@ -77,6 +80,8 @@ def download_one(
     """Download a single video + subtitles. Never raises — errors are returned."""
     day = day or _date.today().isoformat()
     cmd = build_command(url, base_dir, day, fmt, cookies_browser)
+    log.info("download: fetching %s", url)
+    log.debug("yt-dlp %s", " ".join(cmd))
     try:
         proc = runner(cmd)
     except Exception as err:  # runner/process launch failure

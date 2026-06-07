@@ -7,6 +7,7 @@ import sys
 
 from dotenv import load_dotenv
 
+import obs
 from data.store import DataStore
 from download.downloader import DEFAULT_FORMAT
 from monitor.cli import main as monitor_main
@@ -98,7 +99,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--schedule", type=float, metavar="SECONDS", help="repeat on this interval")
     parser.add_argument("--max-runs", type=int, help="stop after N scheduled runs")
     parser.add_argument("--dry-run", action="store_true", help="(monitor) print digest without emailing")
+    obs.add_verbose_arg(parser)
     args = parser.parse_args(argv)
+    obs.configure(args.verbose)
 
     if args.monitor:
         task = lambda: _run_monitor(args)  # noqa: E731
