@@ -32,6 +32,17 @@ REMOTE_COMPONENTS = "ejs:npm"
 Runner = Callable[[list[str]], "subprocess.CompletedProcess[str]"]
 
 
+def normalize_url(url: str) -> str:
+    """Clean shell-mangled URLs.
+
+    A backslash is never valid in a URL, but it's easy to paste one in at the
+    shell (e.g. `watch\\?v\\=…` when `?`/`=` get escaped inside quotes). Left in,
+    yt-dlp fails to recognise the YouTube URL and falls back to its `[generic]`
+    extractor. Strip stray backslashes and surrounding whitespace.
+    """
+    return url.strip().replace("\\", "")
+
+
 def _default_runner(cmd: list[str]) -> "subprocess.CompletedProcess[str]":
     return subprocess.run(cmd, capture_output=True, text=True)
 
@@ -78,6 +89,7 @@ def download_one(
     runner: Runner = _default_runner,
 ) -> DownloadResult:
     """Download a single video + subtitles. Never raises — errors are returned."""
+    url = normalize_url(url)
     day = day or _date.today().isoformat()
     cmd = build_command(url, base_dir, day, fmt, cookies_browser)
     log.info("download: fetching %s", url)

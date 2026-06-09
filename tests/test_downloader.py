@@ -13,6 +13,7 @@ from download.downloader import (
     build_command,
     download_many,
     download_one,
+    normalize_url,
     _find_subtitle,
     _parse_info,
 )
@@ -67,6 +68,27 @@ def test_build_command_encodes_structure_and_flags():
     assert "--dump-json" in cmd and "--no-simulate" in cmd
     assert "--write-info-json" in cmd  # source-metadata sidecar for publish
     assert "--write-thumbnail" in cmd  # source thumbnail for the cover
+
+
+def test_normalize_url_strips_shell_escape_backslashes():
+    # Pasting a URL inside double quotes can leave literal backslashes.
+    assert (
+        normalize_url("https://www.youtube.com/watch\\?v\\=NKnZYvZA7w4")
+        == "https://www.youtube.com/watch?v=NKnZYvZA7w4"
+    )
+    assert normalize_url("  https://yt/watch?v=x  ") == "https://yt/watch?v=x"
+
+
+def test_download_one_normalizes_url_before_running(tmp_path):
+    runner = FakeRunner()
+    res = download_one(
+        "https://yt/watch\\?v\\=vid123",
+        base_dir=tmp_path / "downloads",
+        day="2026-06-04",
+        runner=runner,
+    )
+    assert res.ok
+    assert runner.commands[0][-1] == "https://yt/watch?v=vid123"  # no backslashes
 
 
 def test_build_command_omits_cookies_when_disabled():
