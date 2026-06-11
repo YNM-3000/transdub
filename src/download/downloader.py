@@ -11,6 +11,7 @@ from __future__ import annotations
 import glob
 import json
 import logging
+import re
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date as _date
@@ -30,6 +31,10 @@ DEFAULT_FORMAT = "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
 REMOTE_COMPONENTS = "ejs:npm"
 
 Runner = Callable[[list[str]], "subprocess.CompletedProcess[str]"]
+ProgressFn = Callable[[int], None]
+
+# yt-dlp `--newline` progress lines, e.g. "[download]  42.7% of   12.3MiB ...".
+_DL_PCT = re.compile(r"\[download\]\s+([\d.]+)%")
 
 
 def normalize_url(url: str) -> str:
@@ -53,15 +58,19 @@ def build_command(
     day: str,
     fmt: str = DEFAULT_FORMAT,
     cookies_browser: str | None = "chrome",
+    progress: bool = False,
 ) -> list[str]:
     """Assemble the yt-dlp argv for one video.
 
     Output template encodes the date/channel directory structure; yt-dlp
     creates the directories. `--dump-json` with `--no-simulate` downloads and
     emits the info JSON (incl. final file paths) to stdout.
+
+    `progress=True` swaps `--no-progress` for `--newline`, so download progress
+    is emitted one line per update (parseable while streaming).
     """
     outtmpl = f"{base_dir}/{day}/%(channel)s/%(title)s.%(ext)s"
-    cmd = [YTDLP, "--no-progress", "--no-playlist"]
+    cmd = [YTDLP, "--newline" if progress else "--no-progress", "--no-playlist"]
     if cookies_browser:
         cmd += ["--cookies-from-browser", cookies_browser]
     cmd += [
@@ -86,21 +95,29 @@ def download_one(
     day: str | None = None,
     fmt: str = DEFAULT_FORMAT,
     cookies_browser: str | None = "chrome",
+    on_progress: ProgressFn | None = None,
     runner: Runner = _default_runner,
 ) -> DownloadResult:
-    """Download a single video + subtitles. Never raises — errors are returned."""
+    """Download a single video + subtitles. Never raises — errors are returned.
+
+    `on_progress(pct)` streams download percentages; only honoured with the
+    default runner (tests inject a runner and bypass streaming).
+    """
     url = normalize_url(url)
     day = day or _date.today().isoformat()
-    cmd = build_command(url, base_dir, day, fmt, cookies_browser)
+    stream = on_progress is not None and runner is _default_runner
+    cmd = build_command(url, base_dir, day, fmt, cookies_browser, progress=stream)
     log.info("download: fetching %s", url)
     log.debug("yt-dlp %s", " ".join(cmd))
     try:
-        proc = runner(cmd)
+        proc = _run_with_progress(cmd, on_progress) if stream else runner(cmd)
     except Exception as err:  # runner/process launch failure
         return DownloadResult(url=url, ok=False, error=str(err))
 
     if proc.returncode != 0:
         return DownloadResult(url=url, ok=False, error=_tail(proc.stderr))
+    if stream:
+        on_progress(100)  # close the single progress line
 
     try:
         info = _parse_info(proc.stdout)
@@ -115,6 +132,29 @@ def download_one(
         subtitle_path=_find_subtitle(video_path),
         info=_video_info(info),
     )
+
+
+def _run_with_progress(cmd: list[str], on_progress: ProgressFn):
+    """Run yt-dlp, streaming `[download] NN%` to `on_progress`.
+
+    stdout is buffered (the trailing JSON line is parsed afterwards) while
+    percentages are reported live. A video+audio merge reports two 0→99 passes;
+    percent is capped at 99 so the caller's single line never closes early.
+    """
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    out: list[str] = []
+    last = -5
+    for line in proc.stdout or ():
+        out.append(line)
+        match = _DL_PCT.search(line)
+        if match:
+            pct = min(99, int(float(match.group(1))))
+            if pct < last or pct >= last + 5:  # advanced, or a new stream reset
+                last = pct
+                on_progress(pct)
+    proc.wait()
+    stderr = proc.stderr.read() if proc.stderr else ""
+    return subprocess.CompletedProcess(cmd, proc.returncode, "".join(out), stderr)
 
 
 def download_many(

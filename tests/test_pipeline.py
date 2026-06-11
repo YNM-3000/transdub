@@ -13,6 +13,13 @@ def test_translate_cues_preserves_order_and_count(sample_cues, fake_backend):
     assert out == ["译:Hello world", "译:Second line", "译:Third line"]
 
 
+def test_translate_cues_reports_progress_per_chunk(sample_cues, fake_backend):
+    seen: list[int] = []
+    translate_cues(sample_cues, fake_backend, on_progress=seen.append)
+    assert seen and seen[-1] == 100  # finishes at 100%
+    assert seen == sorted(seen)  # monotonic
+
+
 def test_translate_cues_raises_on_backend_length_mismatch(sample_cues):
     class BadBackend:
         def translate_chunk(self, cues, context):

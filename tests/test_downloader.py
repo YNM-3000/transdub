@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from download import downloader
 from download.downloader import (
     DEFAULT_FORMAT,
     build_command,
@@ -94,6 +95,44 @@ def test_download_one_normalizes_url_before_running(tmp_path):
 def test_build_command_omits_cookies_when_disabled():
     cmd = build_command("URL", "downloads", "2026-06-04", DEFAULT_FORMAT, None)
     assert "--cookies-from-browser" not in cmd
+
+
+def test_build_command_uses_newline_for_progress():
+    plain = build_command("URL", "d", "day", DEFAULT_FORMAT, None)
+    assert "--no-progress" in plain and "--newline" not in plain
+    streamed = build_command("URL", "d", "day", DEFAULT_FORMAT, None, progress=True)
+    assert "--newline" in streamed and "--no-progress" not in streamed
+
+
+def test_download_one_streams_progress(tmp_path, monkeypatch):
+    info = {"id": "v", "title": "T", "channel": "C",
+            "webpage_url": "u", "_filename": str(tmp_path / "T.mp4")}
+    lines = [
+        "[download]   5.0% of 10MiB\n",
+        "[download]  90.0% of 10MiB\n",   # video stream
+        "[download]   2.0% of  1MiB\n",   # audio stream resets
+        "[download] 100.0% of  1MiB\n",
+        json.dumps(info) + "\n",
+    ]
+
+    class FakePopen:
+        def __init__(self, cmd, **kw):
+            self.stdout = iter(lines)
+            self.stderr = SimpleNamespace(read=lambda: "")
+            self.returncode = 0
+
+        def wait(self):
+            return 0
+
+    monkeypatch.setattr(downloader.subprocess, "Popen", FakePopen)
+
+    seen: list[int] = []
+    res = download_one("u", base_dir=tmp_path, day="d", on_progress=seen.append)
+
+    assert res.ok
+    assert seen[-1] == 100  # closed at 100% after success
+    assert max(seen[:-1]) <= 99  # streamed values capped below 100
+    assert 0 in seen or min(seen) < 90  # the audio-stream reset was reported
 
 
 def test_download_one_success(tmp_path):

@@ -127,7 +127,7 @@ def stub_stages(monkeypatch):
         "compose": _cmp(),
     }
     monkeypatch.setattr(flow, "download_one", lambda url, **k: state["download"])
-    monkeypatch.setattr(flow, "translate_download", lambda dl, backend: state["translate"])
+    monkeypatch.setattr(flow, "translate_download", lambda dl, backend, **k: state["translate"])
     monkeypatch.setattr(flow, "compose", lambda *a, **k: state["compose"])
     monkeypatch.setattr(flow, "find_info_json", lambda *a: None)
     monkeypatch.setattr(flow, "source_thumbnail_for", lambda p: None)

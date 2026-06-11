@@ -94,7 +94,10 @@ def run_full(
 
     # 1. Download
     dl: DownloadResult = _timed("download", lambda: retry(
-        lambda: download_one(url, **(download_kwargs or {})),
+        lambda: download_one(
+            url, on_progress=obs.make_progress("  download", log),
+            **(download_kwargs or {}),
+        ),
         policy, success=lambda r: r.ok, **retry_kw,
     ))
     if not dl.ok:
@@ -112,7 +115,9 @@ def run_full(
 
     # 2. Translate
     tr: PipelineResult = _timed("translate", lambda: retry(
-        lambda: translate_download(dl, backend),
+        lambda: translate_download(
+            dl, backend, on_progress=obs.make_progress("  translate", log),
+        ),
         policy, success=lambda r: r.ok, **retry_kw,
     ))
     if not tr.ok:

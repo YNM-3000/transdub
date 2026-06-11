@@ -27,6 +27,7 @@ def translate_download(
     backend: TranslationBackend,
     *,
     clean: bool = True,
+    on_progress=None,
 ) -> PipelineResult:
     """Trigger translation for a completed download.
 
@@ -43,7 +44,10 @@ def translate_download(
     anchor = result.video_path or result.subtitle_path
     out_path = anchor.with_suffix(".bilingual.ass")
     try:
-        ass = translate_file(result.subtitle_path, out_path, backend, clean=clean)
+        ass = translate_file(
+            result.subtitle_path, out_path, backend, clean=clean,
+            on_progress=on_progress,
+        )
     except Exception as err:
         return PipelineResult(result.url, TRANSLATE_FAILED, result, error=str(err))
     return PipelineResult(result.url, TRANSLATED, result, ass_path=ass)

@@ -13,6 +13,8 @@ import obs
 from .backend import get_backend
 from .pipeline import translate_file
 
+_log = obs.logger("translate")
+
 
 def _default_out(in_path: str) -> str:
     stem = Path(in_path).stem
@@ -52,7 +54,10 @@ def main(argv: list[str] | None = None) -> int:
     out_path = args.output or _default_out(in_path)
     try:
         backend = get_backend(args.backend)
-        result = translate_file(in_path, out_path, backend, clean=args.clean)
+        result = translate_file(
+            in_path, out_path, backend, clean=args.clean,
+            on_progress=obs.make_progress("translate", _log),
+        )
     except Exception as err:
         print(f"error: {err}", file=sys.stderr)
         return 1

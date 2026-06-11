@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Callable
 
 from .backend import TranslationBackend
 from .models import Cue
@@ -16,9 +17,19 @@ from .subtitle import chunk_cues, load_cues
 
 log = logging.getLogger("recreator.translate")
 
+ProgressFn = Callable[[int], None]
 
-def translate_cues(cues: list[Cue], backend: TranslationBackend) -> list[str]:
-    """Translate every cue, preserving order and one-to-one mapping."""
+
+def translate_cues(
+    cues: list[Cue],
+    backend: TranslationBackend,
+    *,
+    on_progress: ProgressFn | None = None,
+) -> list[str]:
+    """Translate every cue, preserving order and one-to-one mapping.
+
+    `on_progress(pct)` receives the per-chunk completion percentage.
+    """
     chunks = chunk_cues(cues)
     total = len(chunks)
     log.info("translate: %d cues in %d chunks", len(cues), total)
@@ -31,7 +42,9 @@ def translate_cues(cues: list[Cue], backend: TranslationBackend) -> list[str]:
                 f"backend returned {len(translated)} lines for {len(source)} cues"
             )
         translations.extend(translated)
-        log.info("translate: chunk %d/%d (%d%%)", i, total, round(i * 100 / total))
+        log.debug("translate: chunk %d/%d", i, total)
+        if on_progress is not None:
+            on_progress(round(i * 100 / total))
     return translations
 
 
@@ -40,6 +53,8 @@ def translate_file(
     out_path: str | Path,
     backend: TranslationBackend,
     clean: bool = True,
+    *,
+    on_progress: ProgressFn | None = None,
 ) -> Path:
     """Translate a subtitle file and write a bilingual ASS to `out_path`.
 
@@ -49,7 +64,7 @@ def translate_file(
     if not cues:
         raise ValueError(f"no usable cues found in {in_path}")
 
-    translations = translate_cues(cues, backend)
+    translations = translate_cues(cues, backend, on_progress=on_progress)
     subs = build_bilingual(cues, translations)
 
     out = Path(out_path)
