@@ -34,21 +34,24 @@ def logger(name: str) -> logging.Logger:
 
 
 def make_progress(label: str, log: logging.Logger | None = None):
-    """Return a progress sink `fn(pct)`.
+    """Return a progress sink `fn(pct, detail="")`.
 
-    On a terminal it rewrites a single line (`\\r{label}: {pct}%`), finishing
-    with a newline at 100%. When stderr isn't a TTY (piped/background), it
-    falls back to one log line per update so file logs stay readable.
+    On a terminal it rewrites a single line (`\\r{label}: {pct}% {detail}`),
+    clearing to end-of-line so a shrinking detail leaves no stale text, and
+    finishing with a newline at 100%. When stderr isn't a TTY (piped/background),
+    it falls back to one log line per update so file logs stay readable.
     """
     sink_log = log or logger("progress")
     is_tty = sys.stderr.isatty()
 
-    def progress(pct: int) -> None:
+    def progress(pct: int, detail: str = "") -> None:
+        suffix = f" {detail}" if detail else ""
         if is_tty:
             end = "\n" if pct >= 100 else ""
-            sys.stderr.write(f"\r{label}: {pct}%{end}")
+            # \033[K clears from the cursor to the end of the line.
+            sys.stderr.write(f"\r{label}: {pct}%{suffix}\033[K{end}")
             sys.stderr.flush()
         else:
-            sink_log.info("%s: %d%%", label, pct)
+            sink_log.info("%s: %d%%%s", label, pct, suffix)
 
     return progress

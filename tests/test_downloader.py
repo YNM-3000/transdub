@@ -108,10 +108,10 @@ def test_download_one_streams_progress(tmp_path, monkeypatch):
     info = {"id": "v", "title": "T", "channel": "C",
             "webpage_url": "u", "_filename": str(tmp_path / "T.mp4")}
     lines = [
-        "[download]   5.0% of 10MiB\n",
-        "[download]  90.0% of 10MiB\n",   # video stream
-        "[download]   2.0% of  1MiB\n",   # audio stream resets
-        "[download] 100.0% of  1MiB\n",
+        "[download]   5.0% of   10.50MiB\n",
+        "[download]  90.0% of   10.50MiB\n",   # video stream
+        "[download]   2.0% of ~  1.20MiB\n",   # audio stream resets (estimate)
+        "[download] 100.0% of    1.20MiB\n",
         json.dumps(info) + "\n",
     ]
 
@@ -126,13 +126,19 @@ def test_download_one_streams_progress(tmp_path, monkeypatch):
 
     monkeypatch.setattr(downloader.subprocess, "Popen", FakePopen)
 
-    seen: list[int] = []
-    res = download_one("u", base_dir=tmp_path, day="d", on_progress=seen.append)
+    seen: list[tuple[int, str]] = []
+    res = download_one(
+        "u", base_dir=tmp_path, day="d",
+        on_progress=lambda pct, detail="": seen.append((pct, detail)),
+    )
 
     assert res.ok
-    assert seen[-1] == 100  # closed at 100% after success
-    assert max(seen[:-1]) <= 99  # streamed values capped below 100
-    assert 0 in seen or min(seen) < 90  # the audio-stream reset was reported
+    pcts = [p for p, _ in seen]
+    assert pcts[-1] == 100  # closed at 100% after success
+    assert max(pcts[:-1]) <= 99  # streamed values capped below 100
+    assert min(pcts) < 90  # the audio-stream reset was reported
+    assert any(d == "of 10.50MiB" for _, d in seen)  # total size surfaced
+    assert any("1.20MiB" in d for _, d in seen)  # estimate `~` stripped
 
 
 def test_download_one_success(tmp_path):

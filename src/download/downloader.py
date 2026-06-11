@@ -34,7 +34,10 @@ Runner = Callable[[list[str]], "subprocess.CompletedProcess[str]"]
 ProgressFn = Callable[[int], None]
 
 # yt-dlp `--newline` progress lines, e.g. "[download]  42.7% of   12.3MiB ...".
-_DL_PCT = re.compile(r"\[download\]\s+([\d.]+)%")
+# The size (estimate may be prefixed with `~`) is captured when present.
+_DL_PCT = re.compile(
+    r"\[download\]\s+([\d.]+)%(?:\s+of\s+~?\s*([\d.]+\s*[KMGT]i?B))?"
+)
 
 
 def normalize_url(url: str) -> str:
@@ -151,7 +154,8 @@ def _run_with_progress(cmd: list[str], on_progress: ProgressFn):
             pct = min(99, int(float(match.group(1))))
             if pct < last or pct >= last + 5:  # advanced, or a new stream reset
                 last = pct
-                on_progress(pct)
+                size = (match.group(2) or "").replace(" ", "")
+                on_progress(pct, f"of {size}" if size else "")
     proc.wait()
     stderr = proc.stderr.read() if proc.stderr else ""
     return subprocess.CompletedProcess(cmd, proc.returncode, "".join(out), stderr)
