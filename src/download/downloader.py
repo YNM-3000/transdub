@@ -69,11 +69,14 @@ def build_command(
     creates the directories. `--dump-json` with `--no-simulate` downloads and
     emits the info JSON (incl. final file paths) to stdout.
 
-    `progress=True` swaps `--no-progress` for `--newline`, so download progress
-    is emitted one line per update (parseable while streaming).
+    `progress=True` emits download progress one line per update (parseable
+    while streaming). `--progress` is required because `--dump-json` otherwise
+    suppresses progress output entirely; `--newline` makes each update its own
+    line instead of carriage-return overwrites.
     """
     outtmpl = f"{base_dir}/{day}/%(channel)s/%(title)s.%(ext)s"
-    cmd = [YTDLP, "--newline" if progress else "--no-progress", "--no-playlist"]
+    cmd = [YTDLP, "--no-playlist"]
+    cmd += ["--newline", "--progress"] if progress else ["--no-progress"]
     if cookies_browser:
         cmd += ["--cookies-from-browser", cookies_browser]
     cmd += [

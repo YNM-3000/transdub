@@ -102,6 +102,8 @@ def test_build_command_uses_newline_for_progress():
     assert "--no-progress" in plain and "--newline" not in plain
     streamed = build_command("URL", "d", "day", DEFAULT_FORMAT, None, progress=True)
     assert "--newline" in streamed and "--no-progress" not in streamed
+    # --progress is required: --dump-json otherwise suppresses progress output.
+    assert "--progress" in streamed
 
 
 def test_download_one_streams_progress(tmp_path, monkeypatch):
