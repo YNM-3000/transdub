@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from .backend import get_metadata_backend
 from .content import chinese_from_ass
 from .package import DEFAULT_OUTPUT_DIR, build_package
+from .render import format_package
 from .source import (
     SourceInfo,
     find_info_json,
@@ -90,12 +91,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"✗ publish failed\n    {pkg.error}", file=sys.stderr)
         return 1
 
-    print(f"✓ {pkg.metadata.title}")
-    if pkg.metadata.category:
-        print(f"    category: {pkg.metadata.category}")
-    print(f"    tags:  {', '.join(pkg.metadata.tags)}")
-    print(f"    meta:  {pkg.metadata_path}")
-    print(f"    cover: {pkg.cover_path}")
+    print(format_package(pkg))
     return 0
 
 

@@ -12,6 +12,7 @@ from data.store import DataStore
 from download.downloader import DEFAULT_FORMAT
 from monitor.cli import main as monitor_main
 from publish.backend import get_metadata_backend
+from publish.render import format_package
 from transcribe.backend import get_transcriber
 from translate.backend import get_backend
 
@@ -24,9 +25,9 @@ def _print_flow(result) -> None:
     if result.status == COMPLETED:
         print(f"✓ {result.url} [completed]")
         if result.compose:
-            print(f"    video: {result.compose.out_path}")
-        if result.publish:
-            print(f"    meta:  {result.publish.metadata_path}")
+            print(f"    video:    {result.compose.out_path}")
+        if result.publish and result.publish.metadata:
+            print(format_package(result.publish))
     elif result.status == AWAITING_REVIEW:
         subs = result.translation.ass_path if result.translation else None
         print(f"⏸ {result.url} [awaiting review]  subs: {subs}")
