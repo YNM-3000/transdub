@@ -81,6 +81,7 @@ def run_full(
     *,
     backend: TranslationBackend,
     metadata_backend=None,
+    transcriber=None,
     policy: RetryPolicy = RetryPolicy(),
     output_dir: str = "output",
     store=None,
@@ -113,10 +114,12 @@ def run_full(
         except Exception:
             data_recorded = False
 
-    # 2. Translate
+    # 2. Translate (transcribes the audio first when no caption was downloaded)
     tr: PipelineResult = _timed("translate", lambda: retry(
         lambda: translate_download(
             dl, backend, on_progress=obs.make_progress("  translate", log),
+            transcriber=transcriber,
+            asr_progress=obs.make_progress("  transcribe", log),
         ),
         policy, success=lambda r: r.ok, **retry_kw,
     ))

@@ -11,6 +11,7 @@ from download.models import DownloadResult
 TRANSLATED = "translated"
 DOWNLOAD_FAILED = "download_failed"
 NO_SUBTITLE = "no_subtitle"
+TRANSCRIBE_FAILED = "transcribe_failed"
 TRANSLATE_FAILED = "translate_failed"
 
 

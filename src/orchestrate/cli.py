@@ -12,6 +12,7 @@ from data.store import DataStore
 from download.downloader import DEFAULT_FORMAT
 from monitor.cli import main as monitor_main
 from publish.backend import get_metadata_backend
+from transcribe.backend import get_transcriber
 from translate.backend import get_backend
 
 from .flow import AWAITING_REVIEW, COMPLETED, run_full
@@ -46,6 +47,16 @@ def _run_pipeline(args) -> int:
         print(f"error: {err}", file=sys.stderr)
         return 2
 
+    transcriber = None
+    if not args.no_asr:
+        transcriber = get_transcriber()
+        if transcriber is None:
+            print(
+                "warning: faster-whisper not installed; videos without captions "
+                "will be skipped. Install with: uv sync --extra asr",
+                file=sys.stderr,
+            )
+
     policy = RetryPolicy(attempts=args.attempts, base_delay=args.retry_delay)
     download_kwargs = {
         "base_dir": "downloads",
@@ -61,6 +72,7 @@ def _run_pipeline(args) -> int:
                 url,
                 backend=backend,
                 metadata_backend=metadata_backend,
+                transcriber=transcriber,
                 policy=policy,
                 output_dir=args.output_dir,
                 store=store,
@@ -93,6 +105,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--no-publish", action="store_true", help="skip the publish stage")
     parser.add_argument("--no-data", action="store_true", help="skip recording metrics")
+    parser.add_argument(
+        "--no-asr", action="store_true",
+        help="don't transcribe audio when captions are missing (skip such videos)",
+    )
     parser.add_argument("--attempts", type=int, default=3, help="retry attempts per stage")
     parser.add_argument("--retry-delay", type=float, default=2.0, help="base retry backoff (seconds)")
     parser.add_argument("--cookies-browser", default="chrome")

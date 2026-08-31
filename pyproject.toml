@@ -10,6 +10,10 @@ dependencies = [
     "yt-dlp>=2025.1",
 ]
 
+[project.optional-dependencies]
+# Local speech-to-text fallback for videos whose captions can't be downloaded.
+asr = ["faster-whisper>=1.0"]
+
 [project.scripts]
 recreator-translate = "translate.cli:main"
 recreator-download = "download.cli:main"
@@ -32,7 +36,7 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = [
     "src/translate", "src/download", "src/orchestrate", "src/compose",
-    "src/publish", "src/data", "src/monitor", "src/obs",
+    "src/publish", "src/data", "src/monitor", "src/obs", "src/transcribe",
 ]
 
 [tool.pytest.ini_options]
@@ -41,4 +45,4 @@ addopts = "-q"
 pythonpath = ["src"]
 
 [tool.coverage.run]
-source = ["translate", "download", "orchestrate", "compose", "publish", "data", "monitor", "obs"]
+source = ["translate", "download", "orchestrate", "compose", "publish", "data", "monitor", "obs", "transcribe"]

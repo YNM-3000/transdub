@@ -13,10 +13,29 @@ from download.models import DownloadResult, VideoInfo
 from orchestrate.models import (
     DOWNLOAD_FAILED,
     NO_SUBTITLE,
+    TRANSCRIBE_FAILED,
     TRANSLATE_FAILED,
     TRANSLATED,
 )
 from orchestrate.pipeline import process_url, process_urls, translate_download
+from transcribe.models import Segment
+
+
+class FakeTranscriber:
+    """Returns fixed segments without loading Whisper."""
+
+    def __init__(self, segments=None, boom=False):
+        self.segments = segments or [Segment(0.0, 1.0, "Hello"), Segment(1.0, 2.0, "World")]
+        self.boom = boom
+        self.calls = 0
+
+    def transcribe(self, media_path, *, on_progress=None):
+        self.calls += 1
+        if self.boom:
+            raise RuntimeError("whisper exploded")
+        if on_progress:
+            on_progress(100)
+        return self.segments
 
 
 @pytest.fixture
@@ -64,6 +83,31 @@ def test_translate_download_skips_when_no_subtitle(tmp_path, fake_backend):
     res = translate_download(no_sub, fake_backend)
     assert res.status == NO_SUBTITLE
     assert not res.ok
+
+
+def test_translate_download_transcribes_when_no_subtitle(tmp_path, fake_backend):
+    video = tmp_path / "v.mp4"
+    video.write_bytes(b"x")
+    no_sub = DownloadResult(url="u", ok=True, video_path=video, subtitle_path=None)
+    asr = FakeTranscriber()
+
+    res = translate_download(no_sub, fake_backend, transcriber=asr)
+
+    assert res.status == TRANSLATED and res.ok
+    assert asr.calls == 1
+    assert (tmp_path / "v.en.srt").is_file()  # ASR subtitle written next to video
+    assert res.ass_path == video.with_suffix(".bilingual.ass")
+
+
+def test_translate_download_reports_transcribe_failure(tmp_path, fake_backend):
+    video = tmp_path / "v.mp4"
+    video.write_bytes(b"x")
+    no_sub = DownloadResult(url="u", ok=True, video_path=video, subtitle_path=None)
+
+    res = translate_download(no_sub, fake_backend, transcriber=FakeTranscriber(boom=True))
+
+    assert res.status == TRANSCRIBE_FAILED
+    assert "whisper exploded" in res.error
 
 
 def test_translate_download_reports_translate_failure(downloaded):
