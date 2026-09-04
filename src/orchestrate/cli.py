@@ -78,7 +78,7 @@ def _run_pipeline(args) -> int:
             )
 
     voice_backend = None
-    if args.dub:
+    if not args.no_dub:
         voice_backend = get_voice_backend(args.voice)
         if voice_backend is None:
             print(
@@ -145,11 +145,11 @@ def main(argv: list[str] | None = None) -> int:
         help="don't transcribe audio when captions are missing (skip such videos)",
     )
     parser.add_argument(
-        "--dub", action="store_true",
-        help="also produce a Chinese-voice dubbed variant alongside the video",
+        "--no-dub", action="store_true",
+        help="don't produce the Chinese-voice dubbed variant (on by default)",
     )
     parser.add_argument(
-        "--voice", help="voice for --dub (e.g. zh-CN-YunxiNeural for edge-tts)",
+        "--voice", help="dub voice (e.g. zh-CN-YunxiNeural for edge-tts)",
     )
     parser.add_argument("--attempts", type=int, default=3, help="retry attempts per stage")
     parser.add_argument("--retry-delay", type=float, default=2.0, help="base retry backoff (seconds)")
