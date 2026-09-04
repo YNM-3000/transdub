@@ -8,7 +8,10 @@ in `get_backend`.
 
 from __future__ import annotations
 
+import logging
 from typing import Protocol, runtime_checkable
+
+log = logging.getLogger("recreator.translate")
 
 
 @runtime_checkable
@@ -33,12 +36,60 @@ class LengthMismatchError(RuntimeError):
         self.got = got
 
 
+class FallbackBackend:
+    """Try a primary backend per chunk; fall back to a secondary on failure.
+
+    Implements "local first, cloud fallback": a local model handles most
+    chunks for free, and the (lazily created) cloud backend rescues any chunk
+    the local one flubs — e.g. dropping lines from a strict count.
+    """
+
+    def __init__(self, primary: "TranslationBackend", make_secondary) -> None:
+        self._primary = primary
+        self._make_secondary = make_secondary  # () -> TranslationBackend, lazy
+        self._secondary: TranslationBackend | None = None
+
+    def translate_chunk(self, cues: list[str], context: str) -> list[str]:
+        try:
+            return self._primary.translate_chunk(cues, context)
+        except Exception as err:
+            log.warning("translate: primary backend failed (%s); falling back", err)
+            if self._secondary is None:
+                self._secondary = self._make_secondary()
+            return self._secondary.translate_chunk(cues, context)
+
+
 def get_backend(name: str) -> TranslationBackend:
-    """Resolve a backend by name. Defaults route here from config/CLI/env."""
-    key = (name or "claude").strip().lower()
+    """Resolve a translation backend by name.
+
+    "auto" (the default) prefers a local Ollama model and falls back to Claude
+    when Ollama isn't reachable — so translation runs locally/free when
+    possible and still works out of the box otherwise. "ollama"/"local" and
+    "claude" force a specific engine.
+    """
+    key = (name or "auto").strip().lower()
+
     if key == "claude":
         from .claude_backend import ClaudeBackend
 
         return ClaudeBackend()
-    # Future: "local" -> LocalBackend (Ollama/vLLM/OpenAI-compatible)
+
+    if key in ("ollama", "local"):
+        from .ollama_backend import OllamaBackend
+
+        return OllamaBackend()
+
+    if key == "auto":
+        import os
+
+        from .claude_backend import ClaudeBackend
+        from .ollama_backend import OllamaBackend, ollama_available
+
+        if ollama_available(model=os.environ.get("OLLAMA_MODEL")):
+            log.info("translate: local Ollama (Claude fallback) backend")
+            return FallbackBackend(OllamaBackend(), make_secondary=ClaudeBackend)
+
+        log.info("translate: Ollama unavailable, using Claude backend")
+        return ClaudeBackend()
+
     raise ValueError(f"unknown translation backend: {name!r}")

@@ -19,11 +19,14 @@ class MetadataBackend(Protocol):
 
 
 def get_metadata_backend(name: str) -> MetadataBackend:
-    """Resolve a metadata backend by name (defaults to Claude)."""
+    """Resolve a metadata backend by name.
+
+    Only Claude generates publish metadata for now, so "auto"/"local"/"ollama"
+    all resolve to Claude here (the translation stage can still run locally).
+    """
     key = (name or "claude").strip().lower()
-    if key == "claude":
+    if key in ("claude", "auto", "local", "ollama"):
         from .claude_backend import ClaudeMetadataBackend
 
         return ClaudeMetadataBackend()
-    # Future: "local" -> a local-LLM implementation of the same protocol.
     raise ValueError(f"unknown metadata backend: {name!r}")

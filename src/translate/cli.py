@@ -33,8 +33,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--backend",
-        default=os.environ.get("TRANSLATE_BACKEND", "claude"),
-        help="translation backend (default: claude, or $TRANSLATE_BACKEND)",
+        default=os.environ.get("TRANSLATE_BACKEND", "auto"),
+        help="translation backend: auto (local Ollama→Claude), ollama, or claude "
+             "(default: auto, or $TRANSLATE_BACKEND)",
     )
     parser.add_argument(
         "--no-clean",

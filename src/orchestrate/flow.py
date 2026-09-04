@@ -18,6 +18,8 @@ import obs
 from compose.ffmpeg import compose
 from compose.models import ComposeResult
 from data.models import SourceRecord
+from dub.models import DubResult
+from dub.pipeline import dub_video
 from download.downloader import download_one
 from download.models import DownloadResult, VideoInfo
 from publish.content import chinese_from_ass
@@ -58,6 +60,7 @@ class FlowResult:
     download: DownloadResult | None = None
     translation: PipelineResult | None = None
     compose: ComposeResult | None = None
+    dub: DubResult | None = None
     publish: PublishPackage | None = None
     data_recorded: bool = False
     error: str | None = None
@@ -82,6 +85,7 @@ def run_full(
     backend: TranslationBackend,
     metadata_backend=None,
     transcriber=None,
+    voice_backend=None,
     policy: RetryPolicy = RetryPolicy(),
     output_dir: str = "output",
     store=None,
@@ -141,9 +145,24 @@ def run_full(
     if not cmp.ok:
         return FlowResult(url, COMPOSE_FAILED, download=dl, translation=tr,
                           compose=cmp, data_recorded=data_recorded, error=cmp.error)
+
+    # 3.5 Dub (optional): a Chinese-voice variant alongside the subtitled video.
+    # A dub failure is non-fatal — it's an extra artifact, not a gate.
+    dub: DubResult | None = None
+    if voice_backend is not None:
+        dub = _timed("dub", lambda: retry(
+            lambda: dub_video(
+                cmp.out_path, tr.ass_path, voice_backend,
+                on_progress=obs.make_progress("  dub", log),
+            ),
+            policy, success=lambda r: r.ok, **retry_kw,
+        ))
+        if not dub.ok:
+            log.info("dub failed (continuing): %s", dub.error)
+
     if stop_after == "compose":
         return FlowResult(url, COMPLETED, download=dl, translation=tr,
-                          compose=cmp, data_recorded=data_recorded)
+                          compose=cmp, dub=dub, data_recorded=data_recorded)
 
     # 4. Publish (skipped when no metadata backend is supplied)
     pkg: PublishPackage | None = None
@@ -161,8 +180,8 @@ def run_full(
         ))
         if not pkg.ok:
             return FlowResult(url, PUBLISH_FAILED, download=dl, translation=tr,
-                              compose=cmp, publish=pkg, data_recorded=data_recorded,
-                              error=pkg.error)
+                              compose=cmp, dub=dub, publish=pkg,
+                              data_recorded=data_recorded, error=pkg.error)
 
     return FlowResult(url, COMPLETED, download=dl, translation=tr, compose=cmp,
-                      publish=pkg, data_recorded=data_recorded)
+                      dub=dub, publish=pkg, data_recorded=data_recorded)

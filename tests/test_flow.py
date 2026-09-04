@@ -146,6 +146,40 @@ def test_run_full_completes_without_publish(stub_stages):
     assert store.records[0].source_id == "vid"
 
 
+def test_run_full_dubs_when_voice_backend_given(stub_stages, monkeypatch):
+    from pathlib import Path
+
+    from dub.models import DubResult
+
+    called = {}
+
+    def fake_dub(video, ass, backend, **k):
+        called["ran"] = (video, ass, backend)
+        return DubResult(Path(video), Path(f"{video}.dubbed.mp4"), ok=True, voice="fake")
+
+    monkeypatch.setattr(flow, "dub_video", fake_dub)
+    r = run_full("u", backend=object(), voice_backend=object(),
+                 policy=_FAST, sleep=lambda _s: None)
+    assert r.status == COMPLETED
+    assert called.get("ran") is not None  # dub ran
+    assert r.dub is not None and r.dub.ok
+
+
+def test_run_full_dub_failure_is_non_fatal(stub_stages, monkeypatch):
+    from pathlib import Path
+
+    from dub.models import DubResult
+
+    monkeypatch.setattr(
+        flow, "dub_video",
+        lambda v, a, b, **k: DubResult(Path("v"), Path("o"), ok=False, error="boom"),
+    )
+    r = run_full("u", backend=object(), voice_backend=object(),
+                 policy=_FAST, sleep=lambda _s: None)
+    assert r.status == COMPLETED  # dub failure does not block completion
+    assert r.dub is not None and not r.dub.ok
+
+
 def test_run_full_stops_after_translate_for_review(stub_stages):
     r = run_full("u", backend=object(), policy=_FAST, stop_after="translate", sleep=lambda _s: None)
     assert r.status == AWAITING_REVIEW

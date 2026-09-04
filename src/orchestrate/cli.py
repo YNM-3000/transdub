@@ -11,6 +11,7 @@ import obs
 from data.store import DataStore
 from download.downloader import DEFAULT_FORMAT
 from monitor.cli import main as monitor_main
+from dub.backend import get_voice_backend
 from publish.backend import get_metadata_backend
 from publish.render import format_package
 from transcribe.backend import get_transcriber
@@ -26,6 +27,8 @@ def _print_flow(result) -> None:
         print(f"✓ {result.url} [completed]")
         if result.compose:
             print(f"    video:    {result.compose.out_path}")
+        if result.dub and result.dub.ok:
+            print(f"    dubbed:   {result.dub.out_path}  [{result.dub.voice}]")
         if result.publish and result.publish.metadata:
             print(format_package(result.publish))
     elif result.status == AWAITING_REVIEW:
@@ -58,6 +61,16 @@ def _run_pipeline(args) -> int:
                 file=sys.stderr,
             )
 
+    voice_backend = None
+    if args.dub:
+        voice_backend = get_voice_backend(args.voice)
+        if voice_backend is None:
+            print(
+                "warning: no voice backend available; skipping dub. Install with: "
+                "uv sync --extra dub  (edge-tts) or set up Kokoro.",
+                file=sys.stderr,
+            )
+
     policy = RetryPolicy(attempts=args.attempts, base_delay=args.retry_delay)
     download_kwargs = {
         "base_dir": "downloads",
@@ -74,6 +87,7 @@ def _run_pipeline(args) -> int:
                 backend=backend,
                 metadata_backend=metadata_backend,
                 transcriber=transcriber,
+                voice_backend=voice_backend,
                 policy=policy,
                 output_dir=args.output_dir,
                 store=store,
@@ -99,7 +113,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", default="channels.json", help="monitor watchlist (with --monitor)")
     parser.add_argument("--db", default="recreator.db", help="state/metrics SQLite path")
     parser.add_argument("--output-dir", default="output")
-    parser.add_argument("--backend", default="claude", help="LLM backend for translate + publish")
+    parser.add_argument(
+        "--backend", default="auto",
+        help="translate backend: auto (local Ollama→Claude), ollama, or claude "
+             "(publish metadata always uses Claude)",
+    )
     parser.add_argument(
         "--stop-after", choices=["translate", "compose"],
         help="halt early (translate = stop at the human review gate)",
@@ -109,6 +127,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--no-asr", action="store_true",
         help="don't transcribe audio when captions are missing (skip such videos)",
+    )
+    parser.add_argument(
+        "--dub", action="store_true",
+        help="also produce a Chinese-voice dubbed variant alongside the video",
+    )
+    parser.add_argument(
+        "--voice", help="voice for --dub (e.g. zh-CN-YunxiNeural for edge-tts)",
     )
     parser.add_argument("--attempts", type=int, default=3, help="retry attempts per stage")
     parser.add_argument("--retry-delay", type=float, default=2.0, help="base retry backoff (seconds)")

@@ -51,3 +51,18 @@ def test_ensure_subtitle_writes_next_to_video(tmp_path):
     assert out == tmp_path / "clip.en.srt"
     assert out.is_file()
     assert seen == [50, 100]
+
+
+def test_ensure_subtitle_reuses_existing_srt(tmp_path):
+    video = tmp_path / "clip.mp4"
+    video.write_bytes(b"x")
+    (tmp_path / "clip.en.srt").write_text(
+        "1\n00:00:00,000 --> 00:00:01,000\ncached\n", encoding="utf-8"
+    )
+
+    class BoomTranscriber:
+        def transcribe(self, media_path, *, on_progress=None):
+            raise AssertionError("should not transcribe when SRT exists")
+
+    out = ensure_subtitle(video, BoomTranscriber())
+    assert out == tmp_path / "clip.en.srt"

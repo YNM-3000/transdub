@@ -125,8 +125,107 @@ def test_length_mismatch_error_fields():
     assert err.expected == 3 and err.got == 2
 
 
-def test_get_backend_resolves_claude_and_rejects_unknown():
+def test_get_backend_resolves_claude_ollama_and_rejects_unknown():
+    from translate.ollama_backend import OllamaBackend
+
     assert isinstance(get_backend("claude"), ClaudeBackend)
-    assert isinstance(get_backend(""), ClaudeBackend)  # defaults to claude
+    assert isinstance(get_backend("ollama"), OllamaBackend)
+    assert isinstance(get_backend("local"), OllamaBackend)
     with pytest.raises(ValueError):
         get_backend("nope")
+
+
+def test_get_backend_auto_prefers_ollama_then_falls_back(monkeypatch):
+    import translate.backend as backend_mod
+    from translate.backend import FallbackBackend
+    from translate.ollama_backend import OllamaBackend
+
+    monkeypatch.setattr("translate.ollama_backend.ollama_available", lambda **k: True)
+    auto = backend_mod.get_backend("auto")  # local primary, Claude fallback
+    assert isinstance(auto, FallbackBackend)
+    assert isinstance(auto._primary, OllamaBackend)
+    assert isinstance(backend_mod.get_backend(""), FallbackBackend)  # default is auto
+
+    monkeypatch.setattr("translate.ollama_backend.ollama_available", lambda **k: False)
+    assert isinstance(backend_mod.get_backend("auto"), ClaudeBackend)
+
+
+def test_ollama_backend_translates_via_transport():
+    from translate.ollama_backend import OllamaBackend
+
+    seen = {}
+
+    def transport(user: str) -> str:
+        seen["user"] = user
+        return "1. 你好\n2. 世界"
+
+    backend = OllamaBackend(model="qwen", transport=transport)
+    assert backend.translate_chunk(["Hi", "World"], "ctx") == ["你好", "世界"]
+    assert "1. Hi" in seen["user"] and "2. World" in seen["user"]
+
+
+def test_ollama_backend_retries_on_length_mismatch():
+    from translate.ollama_backend import OllamaBackend
+
+    calls = {"n": 0}
+
+    def transport(user: str) -> str:
+        calls["n"] += 1
+        return "1. 只有一行" if calls["n"] == 1 else "1. 甲\n2. 乙"
+
+    backend = OllamaBackend(model="qwen", transport=transport, sleep=lambda _s: None)
+    assert backend.translate_chunk(["a", "b"], "") == ["甲", "乙"]
+    assert calls["n"] == 2
+
+
+def test_fallback_backend_uses_primary_then_secondary():
+    from translate.backend import FallbackBackend
+
+    class Primary:
+        def __init__(self):
+            self.calls = 0
+
+        def translate_chunk(self, cues, context):
+            self.calls += 1
+            raise RuntimeError("dropped a line")
+
+    class Secondary:
+        def translate_chunk(self, cues, context):
+            return [f"译:{c}" for c in cues]
+
+    made = {"n": 0}
+
+    def make_secondary():
+        made["n"] += 1
+        return Secondary()
+
+    primary = Primary()
+    fb = FallbackBackend(primary, make_secondary)
+    assert fb.translate_chunk(["a", "b"], "") == ["译:a", "译:b"]
+    assert primary.calls == 1 and made["n"] == 1
+
+    # Secondary is created lazily once and reused on the next fallback.
+    fb.translate_chunk(["c"], "")
+    assert made["n"] == 1
+
+
+def test_fallback_backend_prefers_primary_when_it_succeeds():
+    from translate.backend import FallbackBackend
+
+    class Primary:
+        def translate_chunk(self, cues, context):
+            return ["本地"]
+
+    def boom():
+        raise AssertionError("secondary should not be built")
+
+    fb = FallbackBackend(Primary(), boom)
+    assert fb.translate_chunk(["x"], "") == ["本地"]
+
+
+def test_ollama_pick_model_prefers_chinese_capable():
+    from translate.ollama_backend import pick_model
+
+    assert pick_model(["llama3:8b", "qwen3.5:9b"]) == "qwen3.5:9b"
+    assert pick_model(["mistral:7b"]) == "mistral:7b"  # falls back to first
+    assert pick_model([]) is None
