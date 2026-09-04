@@ -22,6 +22,9 @@ class EdgeBackend:
 
     def __init__(self, voice: str = DEFAULT_VOICE) -> None:
         self.voice = voice
+        # edge-tts is network I/O-bound; synthesizing cues concurrently hides
+        # the per-request websocket latency. Tune with $DUB_WORKERS.
+        self.max_workers = int(os.environ.get("DUB_WORKERS", "8"))
 
     def describe(self) -> str:
         return f"online · edge-tts:{self.voice}"

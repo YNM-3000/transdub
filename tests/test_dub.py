@@ -52,3 +52,40 @@ def test_plan_timeline_places_clips_and_never_drifts():
 def test_default_dub_output_is_sibling_variant():
     out = default_dub_output(Path("output/x/Clip.final.mp4"))
     assert out == Path("output/x/Clip.final.dubbed.mp4")
+
+
+def test_synthesize_all_parallel_preserves_order(tmp_path):
+    from dub.audio import _synthesize_all
+
+    cues = [VoiceCue(0, 1, f"line{i}") for i in range(12)]
+    clips = [tmp_path / f"c{i}.wav" for i in range(12)]
+
+    class FakeBackend:
+        max_workers = 4  # exercise the concurrent path
+
+        def synthesize(self, text, out):
+            Path(out).write_text(text)
+
+    seen: list[int] = []
+    _synthesize_all(cues, clips, FakeBackend(), seen.append)
+
+    assert all(clips[i].read_text() == f"line{i}" for i in range(12))  # order kept
+    assert len(seen) == 12 and max(seen) <= 99  # 100 is emitted later, after concat
+
+
+def test_get_voice_backend_engine_selection(monkeypatch):
+    import dub.backend as db
+
+    monkeypatch.setattr(db, "_try_edge", lambda v: "EDGE")
+    monkeypatch.setattr(db, "_try_kokoro", lambda v: "KOKORO")
+    monkeypatch.delenv("DUB_ENGINE", raising=False)
+
+    assert db.get_voice_backend() == "EDGE"  # auto prefers edge-tts now
+    assert db.get_voice_backend(engine="kokoro") == "KOKORO"
+
+    monkeypatch.setenv("DUB_ENGINE", "kokoro")
+    assert db.get_voice_backend() == "KOKORO"
+
+    monkeypatch.delenv("DUB_ENGINE", raising=False)
+    monkeypatch.setattr(db, "_try_edge", lambda v: None)
+    assert db.get_voice_backend() == "KOKORO"  # auto falls back when edge absent

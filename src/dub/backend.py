@@ -27,21 +27,32 @@ class VoiceBackend(Protocol):
         ...
 
 
-def get_voice_backend(voice: str | None = None) -> VoiceBackend | None:
-    """Build the preferred available voice backend, or None if none is usable.
+def get_voice_backend(
+    voice: str | None = None, engine: str | None = None
+) -> VoiceBackend | None:
+    """Build a voice backend, or None if none is usable.
 
-    Order: Kokoro (local, offline) → edge-tts (online). `voice` overrides the
-    default voice for whichever engine is chosen.
+    `engine` (or $DUB_ENGINE) forces "edge"/"edge-tts" or "kokoro". Default
+    "auto" prefers **edge-tts** (more natural, better with embedded English)
+    and falls back to local Kokoro (offline). `voice` overrides the default
+    voice for whichever engine is chosen.
     """
-    kokoro = _try_kokoro(voice)
-    if kokoro is not None:
-        log.info("dub: using Kokoro voice backend")
-        return kokoro
+    choice = (engine or os.environ.get("DUB_ENGINE", "auto")).strip().lower()
+
+    if choice in ("edge", "edge-tts"):
+        return _try_edge(voice)
+    if choice == "kokoro":
+        return _try_kokoro(voice)
 
     edge = _try_edge(voice)
     if edge is not None:
-        log.info("dub: using edge-tts voice backend (Kokoro unavailable)")
+        log.info("dub: using edge-tts voice backend")
         return edge
+
+    kokoro = _try_kokoro(voice)
+    if kokoro is not None:
+        log.info("dub: using Kokoro voice backend (edge-tts unavailable)")
+        return kokoro
 
     return None
 

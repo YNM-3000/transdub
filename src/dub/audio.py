@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 import subprocess
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable
 
@@ -76,14 +78,9 @@ def build_dub_track(
     on_progress: ProgressFn | None = None,
 ) -> Path:
     """Synthesize each cue, fit it to its window, and concat into `out_wav`."""
-    clips: list[Path] = []
     total = len(cues)
-    for i, cue in enumerate(cues):
-        clip = workdir / f"clip{i:04d}.wav"
-        backend.synthesize(cue.text, clip)
-        clips.append(clip)
-        if on_progress is not None:
-            on_progress(min(99, int((i + 1) * 100 / total)))
+    clips = [workdir / f"clip{i:04d}.wav" for i in range(total)]
+    _synthesize_all(cues, clips, backend, on_progress)
 
     durations = [probe_duration(c, runner) for c in clips]
     pieces = plan_timeline(cues, durations)
@@ -101,6 +98,39 @@ def build_dub_track(
     if on_progress is not None:
         on_progress(100)
     return out_wav
+
+
+def _synthesize_all(cues, clips, backend, on_progress) -> None:
+    """Synthesize every cue, concurrently when the backend allows it.
+
+    Network-bound backends (edge-tts) set `max_workers > 1` to hide per-request
+    latency; local backends (Kokoro) default to 1. Ordering is by clip path, so
+    concurrency doesn't affect the timeline.
+    """
+    total = len(cues)
+    workers = max(1, int(getattr(backend, "max_workers", 1)))
+
+    if workers == 1:
+        for i, cue in enumerate(cues):
+            backend.synthesize(cue.text, clips[i])
+            if on_progress is not None:
+                on_progress(min(99, int((i + 1) * 100 / total)))
+        return
+
+    done = 0
+    lock = threading.Lock()
+
+    def synth(i: int) -> None:
+        nonlocal done
+        backend.synthesize(cues[i].text, clips[i])
+        with lock:
+            done += 1
+            if on_progress is not None:
+                on_progress(min(99, int(done * 100 / total)))
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for _ in pool.map(synth, range(total)):  # re-raises the first failure
+            pass
 
 
 def mux_audio(video: Path, audio: Path, out: Path, runner: Runner = _run) -> None:
