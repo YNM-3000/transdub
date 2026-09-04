@@ -13,11 +13,16 @@ dependencies = [
 [project.optional-dependencies]
 # Local speech-to-text fallback for videos whose captions can't be downloaded.
 asr = ["faster-whisper>=1.0"]
+# Chinese dubbing: edge-tts is the reliable default; Kokoro (local) is used
+# first when installed + model files are present (see dub.backend).
+dub = ["edge-tts>=7.0"]
+dub-kokoro = ["kokoro-onnx>=0.4", "misaki[zh]>=0.9", "numpy>=1.26"]
 
 [project.scripts]
 recreator-translate = "translate.cli:main"
 recreator-download = "download.cli:main"
 recreator-compose = "compose.cli:main"
+recreator-dub = "dub.cli:main"
 recreator-publish = "publish.cli:main"
 recreator-data = "data.cli:main"
 recreator-monitor = "monitor.cli:main"
@@ -37,6 +42,7 @@ build-backend = "hatchling.build"
 packages = [
     "src/translate", "src/download", "src/orchestrate", "src/compose",
     "src/publish", "src/data", "src/monitor", "src/obs", "src/transcribe",
+    "src/dub",
 ]
 
 [tool.pytest.ini_options]
@@ -45,4 +51,4 @@ addopts = "-q"
 pythonpath = ["src"]
 
 [tool.coverage.run]
-source = ["translate", "download", "orchestrate", "compose", "publish", "data", "monitor", "obs", "transcribe"]
+source = ["translate", "download", "orchestrate", "compose", "publish", "data", "monitor", "obs", "transcribe", "dub"]
