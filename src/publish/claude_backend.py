@@ -74,6 +74,9 @@ class ClaudeMetadataBackend:
             self._client = anthropic.Anthropic()
         return self._client
 
+    def describe(self) -> str:
+        return f"cloud · claude:{self._model}"
+
     def generate(self, source_title: str, content: str) -> PublishMetadata:
         user = (
             f"Source title: {source_title}\n\n"

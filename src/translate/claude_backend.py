@@ -65,6 +65,9 @@ class ClaudeBackend:
             self._client = anthropic.Anthropic()
         return self._client
 
+    def describe(self) -> str:
+        return f"cloud · claude:{self._model}"
+
     def translate_chunk(self, cues: list[str], context: str) -> list[str]:
         if not cues:
             return []

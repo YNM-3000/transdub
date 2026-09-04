@@ -90,6 +90,9 @@ class OllamaBackend:
             log.info("translate: ollama auto-selected model %r", self._model)
         return self._model
 
+    def describe(self) -> str:
+        return f"local · ollama:{self.model}"
+
     def translate_chunk(self, cues: list[str], context: str) -> list[str]:
         if not cues:
             return []
@@ -117,14 +120,14 @@ class OllamaBackend:
     def _request(self, user: str) -> str:
         if self._transport is not None:
             return self._transport(user)
-        return _chat(self._server, self.model, user, self._temperature)
+        return _chat(self._server, self.model, user, self._temperature, SYSTEM_PROMPT)
 
 
-def _chat(server: str, model: str, user: str, temperature: float) -> str:
+def _chat(server: str, model: str, user: str, temperature: float, system: str) -> str:
     payload = {
         "model": model,
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
         "stream": False,

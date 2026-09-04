@@ -48,15 +48,38 @@ class FallbackBackend:
         self._primary = primary
         self._make_secondary = make_secondary  # () -> TranslationBackend, lazy
         self._secondary: TranslationBackend | None = None
+        self._primary_uses = 0
+        self._secondary_uses = 0
 
     def translate_chunk(self, cues: list[str], context: str) -> list[str]:
         try:
-            return self._primary.translate_chunk(cues, context)
+            out = self._primary.translate_chunk(cues, context)
+            self._primary_uses += 1
+            return out
         except Exception as err:
             log.warning("translate: primary backend failed (%s); falling back", err)
             if self._secondary is None:
                 self._secondary = self._make_secondary()
-            return self._secondary.translate_chunk(cues, context)
+            out = self._secondary.translate_chunk(cues, context)
+            self._secondary_uses += 1
+            return out
+
+    def describe(self) -> str:
+        total = self._primary_uses + self._secondary_uses
+        if total == 0:
+            return describe_backend(self._primary)
+        parts = [f"{describe_backend(self._primary)} ({self._primary_uses}/{total} chunks)"]
+        if self._secondary_uses and self._secondary is not None:
+            parts.append(f"{describe_backend(self._secondary)} ({self._secondary_uses}/{total})")
+        return " + ".join(parts)
+
+
+def describe_backend(backend: object) -> str:
+    """Human label for a backend, e.g. 'local · ollama:llama3.1:8b'."""
+    describe = getattr(backend, "describe", None)
+    if callable(describe):
+        return describe()
+    return type(backend).__name__
 
 
 def get_backend(name: str) -> TranslationBackend:

@@ -16,3 +16,6 @@ htmlcov/
 samples/*.srt
 samples/*.vtt
 !samples/demo.srt
+
+# local TTS/model files
+models/

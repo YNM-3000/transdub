@@ -34,9 +34,24 @@ class KokoroBackend:
             )
         self.voice = voice
         self._kokoro = Kokoro(model, voices)
+        self._g2p = None  # misaki zh G2P, created on first use
+
+    def describe(self) -> str:
+        return f"local · kokoro:{self.voice}"
+
+    def _phonemes(self, text: str) -> str:
+        # Kokoro's built-in espeak g2p has no Chinese; misaki provides it.
+        if self._g2p is None:
+            from misaki import zh
+
+            self._g2p = zh.ZHG2P()
+        phonemes, _ = self._g2p(text)
+        return phonemes
 
     def synthesize(self, text: str, out_path: str | Path) -> None:
-        samples, sr = self._kokoro.create(text, voice=self.voice, lang="zh")
+        samples, sr = self._kokoro.create(
+            self._phonemes(text), voice=self.voice, is_phonemes=True
+        )
         _write_wav(np.asarray(samples, dtype=np.float32), sr, Path(out_path))
 
 

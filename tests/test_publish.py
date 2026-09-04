@@ -98,9 +98,49 @@ def test_claude_backend_retries_then_succeeds():
 
 
 def test_get_metadata_backend_resolves_and_rejects():
+    from publish.ollama_backend import OllamaMetadataBackend
+
     assert isinstance(get_metadata_backend("claude"), ClaudeMetadataBackend)
+    assert isinstance(get_metadata_backend("ollama"), OllamaMetadataBackend)
     with pytest.raises(ValueError):
         get_metadata_backend("nope")
+
+
+def test_get_metadata_backend_auto_prefers_ollama_then_falls_back(monkeypatch):
+    import publish.backend as pb
+    from publish.backend import FallbackMetadataBackend
+
+    monkeypatch.setattr("translate.ollama_backend.ollama_available", lambda **k: True)
+    assert isinstance(pb.get_metadata_backend("auto"), FallbackMetadataBackend)
+
+    monkeypatch.setattr("translate.ollama_backend.ollama_available", lambda **k: False)
+    assert isinstance(pb.get_metadata_backend("auto"), ClaudeMetadataBackend)
+
+
+def test_ollama_metadata_backend_via_transport():
+    from publish.ollama_backend import OllamaMetadataBackend
+
+    backend = OllamaMetadataBackend(model="qwen", transport=lambda user: SAMPLE)
+    md = backend.generate("What Exactly Is USB-C", "一些中文内容")
+    assert md.title.startswith("USB-C")
+    assert backend.describe() == "local · ollama:qwen"
+
+
+def test_fallback_metadata_backend_falls_back_and_describes():
+    from publish.backend import FallbackMetadataBackend
+
+    class BoomPrimary:
+        def generate(self, source_title, content):
+            raise RuntimeError("local flaked")
+
+        def describe(self):
+            return "local · ollama:x"
+
+    secondary = ClaudeMetadataBackend(client=FakeClient([SAMPLE]), sleep=lambda _s: None)
+    fb = FallbackMetadataBackend(BoomPrimary(), make_secondary=lambda: secondary)
+    md = fb.generate("t", "c")
+    assert md.title.startswith("USB-C")
+    assert fb.describe().startswith("cloud · claude")
 
 
 # --- content extraction ------------------------------------------------------

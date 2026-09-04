@@ -48,12 +48,14 @@ def translate_download(
         return PipelineResult(result.url, DOWNLOAD_FAILED, result, error=result.error)
 
     subtitle = result.subtitle_path
+    source = "caption"
     if subtitle is None:
         if transcriber is None or result.video_path is None:
             return PipelineResult(
                 result.url, NO_SUBTITLE, result, error="no subtitle track"
             )
         log.info("no caption track; transcribing audio with Whisper …")
+        source = "asr"
         try:
             subtitle = ensure_subtitle(
                 result.video_path, transcriber, on_progress=asr_progress
@@ -72,7 +74,8 @@ def translate_download(
         )
     except Exception as err:
         return PipelineResult(result.url, TRANSLATE_FAILED, result, error=str(err))
-    return PipelineResult(result.url, TRANSLATED, result, ass_path=ass)
+    return PipelineResult(result.url, TRANSLATED, result, ass_path=ass,
+                          subtitle_source=source)
 
 
 def process_url(

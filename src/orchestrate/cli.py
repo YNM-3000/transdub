@@ -22,6 +22,20 @@ from .retry import RetryPolicy
 from .scheduler import run_periodically
 
 
+_ENGINE_ORDER = ("download", "subtitle", "translate", "dub", "publish")
+
+
+def _print_engines(engines: dict) -> None:
+    if not engines:
+        return
+    print("─" * 60)
+    print("engines (local vs cloud):")
+    for phase in _ENGINE_ORDER:
+        if phase in engines:
+            print(f"    {phase + ':':<11} {engines[phase]}")
+    print("─" * 60)
+
+
 def _print_flow(result) -> None:
     if result.status == COMPLETED:
         print(f"✓ {result.url} [completed]")
@@ -31,9 +45,11 @@ def _print_flow(result) -> None:
             print(f"    dubbed:   {result.dub.out_path}  [{result.dub.voice}]")
         if result.publish and result.publish.metadata:
             print(format_package(result.publish))
+        _print_engines(result.engines)
     elif result.status == AWAITING_REVIEW:
         subs = result.translation.ass_path if result.translation else None
         print(f"⏸ {result.url} [awaiting review]  subs: {subs}")
+        _print_engines(result.engines)
     else:
         print(f"✗ {result.url} [{result.status}]  {result.error}", file=sys.stderr)
 

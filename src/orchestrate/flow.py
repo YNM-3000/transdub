@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import obs
 from compose.ffmpeg import compose
@@ -26,7 +26,7 @@ from publish.content import chinese_from_ass
 from publish.models import PublishPackage
 from publish.package import build_package
 from publish.source import SourceInfo, find_info_json, source_thumbnail_for
-from translate.backend import TranslationBackend
+from translate.backend import TranslationBackend, describe_backend
 
 from .models import PipelineResult
 from .pipeline import translate_download
@@ -63,6 +63,7 @@ class FlowResult:
     dub: DubResult | None = None
     publish: PublishPackage | None = None
     data_recorded: bool = False
+    engines: dict = field(default_factory=dict)  # phase -> "local · …" / "cloud · …"
     error: str | None = None
 
     @property
@@ -95,6 +96,7 @@ def run_full(
 ) -> FlowResult:
     """Run a video end to end. Never raises — failures land in FlowResult."""
     retry_kw = {"sleep": sleep} if sleep is not None else {}
+    engines: dict = {"download": "yt-dlp"}
     log.info("processing %s", url)
 
     # 1. Download
@@ -129,10 +131,15 @@ def run_full(
     ))
     if not tr.ok:
         return FlowResult(url, TRANSLATE_FAILED, download=dl, translation=tr,
-                          data_recorded=data_recorded, error=tr.error)
+                          data_recorded=data_recorded, engines=engines, error=tr.error)
+    engines["subtitle"] = (
+        f"local · whisper:{getattr(transcriber, 'model_name', '?')}"
+        if tr.subtitle_source == "asr" else "YouTube captions"
+    )
+    engines["translate"] = describe_backend(backend)
     if stop_after == "translate":  # respect the human review gate
         return FlowResult(url, AWAITING_REVIEW, download=dl, translation=tr,
-                          data_recorded=data_recorded)
+                          data_recorded=data_recorded, engines=engines)
 
     # 3. Compose
     cmp: ComposeResult = _timed("compose", lambda: retry(
@@ -159,10 +166,13 @@ def run_full(
         ))
         if not dub.ok:
             log.info("dub failed (continuing): %s", dub.error)
+        else:
+            engines["dub"] = describe_backend(voice_backend)
 
     if stop_after == "compose":
         return FlowResult(url, COMPLETED, download=dl, translation=tr,
-                          compose=cmp, dub=dub, data_recorded=data_recorded)
+                          compose=cmp, dub=dub, data_recorded=data_recorded,
+                          engines=engines)
 
     # 4. Publish (skipped when no metadata backend is supplied)
     pkg: PublishPackage | None = None
@@ -181,7 +191,10 @@ def run_full(
         if not pkg.ok:
             return FlowResult(url, PUBLISH_FAILED, download=dl, translation=tr,
                               compose=cmp, dub=dub, publish=pkg,
-                              data_recorded=data_recorded, error=pkg.error)
+                              data_recorded=data_recorded, engines=engines,
+                              error=pkg.error)
+        engines["publish"] = describe_backend(metadata_backend)
 
     return FlowResult(url, COMPLETED, download=dl, translation=tr, compose=cmp,
-                      dub=dub, publish=pkg, data_recorded=data_recorded)
+                      dub=dub, publish=pkg, data_recorded=data_recorded,
+                      engines=engines)

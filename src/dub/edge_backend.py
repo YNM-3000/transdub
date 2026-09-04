@@ -23,6 +23,9 @@ class EdgeBackend:
     def __init__(self, voice: str = DEFAULT_VOICE) -> None:
         self.voice = voice
 
+    def describe(self) -> str:
+        return f"online · edge-tts:{self.voice}"
+
     def synthesize(self, text: str, out_path: str | Path) -> None:
         import edge_tts  # lazy
 

@@ -39,6 +39,9 @@ class WhisperBackend:
         self.language = language
         self._model = None
 
+    def describe(self) -> str:
+        return f"local · whisper:{self.model_name}"
+
     def _load(self):
         if self._model is None:
             from faster_whisper import WhisperModel  # lazy: heavy import

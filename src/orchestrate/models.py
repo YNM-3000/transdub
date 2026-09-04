@@ -23,6 +23,7 @@ class PipelineResult:
     status: str
     download: DownloadResult | None = None
     ass_path: Path | None = None
+    subtitle_source: str = ""  # "caption" (downloaded) or "asr" (transcribed)
     error: str | None = None
 
     @property
