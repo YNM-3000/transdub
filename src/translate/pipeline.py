@@ -12,6 +12,7 @@ from typing import Callable
 
 from .backend import TranslationBackend
 from .models import Cue
+from .sanitize import strip_translator_notes
 from .styler import build_bilingual
 from .subtitle import chunk_cues, load_cues
 
@@ -41,7 +42,7 @@ def translate_cues(
             raise RuntimeError(
                 f"backend returned {len(translated)} lines for {len(source)} cues"
             )
-        translations.extend(translated)
+        translations.extend(strip_translator_notes(t) for t in translated)
         log.debug("translate: chunk %d/%d", i, total)
         if on_progress is not None:
             on_progress(round(i * 100 / total))

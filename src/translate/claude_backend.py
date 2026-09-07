@@ -31,6 +31,9 @@ Rules:
 - Keep terminology consistent across lines.
 - Preserve meaning and tone; do not add or omit content.
 - Each input line maps to exactly one output line. Never merge or split lines.
+- Output ONLY the translation. Never add translator notes, annotations,
+  explanations, alternatives, or parentheticals like （注：…）. If a term is
+  ambiguous, just pick the best natural rendering.
 
 Output format (STRICT):
 - Output one line per input line, prefixed with its number and a period:
