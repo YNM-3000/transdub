@@ -95,6 +95,13 @@ def test_parse_numbered_folds_wrapped_continuation_lines():
     assert _parse_numbered(text, 2) == ["first part continued here", "second"]
 
 
+def test_parse_numbered_raises_on_empty_line():
+    # An empty translation (model merged it into a neighbour) must be rejected
+    # so the backend retries / falls back, not silently produce a blank cue.
+    with pytest.raises(LengthMismatchError):
+        _parse_numbered("1. 甲\n2. \n3. 丙", 3)
+
+
 def test_parse_numbered_raises_on_missing_index():
     with pytest.raises(LengthMismatchError):
         _parse_numbered("1. 甲\n3. 丙", 3)  # missing #2

@@ -31,6 +31,10 @@ Rules:
 - Keep terminology consistent across lines.
 - Preserve meaning and tone; do not add or omit content.
 - Each input line maps to exactly one output line. Never merge or split lines.
+- Every output line must be a complete, NON-EMPTY translation of its own input
+  line. Input lines are often mid-sentence fragments (from auto-captions);
+  translate each fragment on its own line — never leave a line blank or push
+  its content onto a neighbouring line.
 - Output ONLY the translation. Never add translator notes, annotations,
   explanations, alternatives, or parentheticals like （注：…）. If a term is
   ambiguous, just pick the best natural rendering.
@@ -148,4 +152,10 @@ def _parse_numbered(text: str, expected: int) -> list[str]:
         if i not in by_index:
             raise LengthMismatchError(expected, len(by_index))
         out.append(by_index[i])
+
+    # An empty line means the model merged its content into a neighbour (a
+    # cue would render with no Chinese). Treat it as a bad response so the
+    # backend retries / falls back.
+    if any(not line.strip() for line in out):
+        raise LengthMismatchError(expected, sum(1 for line in out if line.strip()))
     return out
