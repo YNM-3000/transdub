@@ -7,14 +7,19 @@ clips concatenate cleanly. edge-tts is imported lazily.
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 from .backend import SAMPLE_RATE
 
+log = logging.getLogger("recreator.dub")
+
 DEFAULT_VOICE = "zh-CN-XiaoxiaoNeural"
+MAX_RETRIES = 3
 
 
 class EdgeBackend:
@@ -38,9 +43,20 @@ class EdgeBackend:
         async def _run() -> None:
             await edge_tts.Communicate(text, self.voice).save(mp3)
 
+        # edge-tts intermittently returns "No audio was received" (transient,
+        # or under concurrency); retry with backoff before giving up.
         try:
-            asyncio.run(_run())
-            _to_wav(Path(mp3), Path(out_path))
+            last_err: Exception | None = None
+            for attempt in range(MAX_RETRIES):
+                try:
+                    asyncio.run(_run())
+                    _to_wav(Path(mp3), Path(out_path))
+                    return
+                except Exception as err:
+                    last_err = err
+                    if attempt < MAX_RETRIES - 1:
+                        time.sleep(0.5 * (attempt + 1))
+            raise last_err  # type: ignore[misc]
         finally:
             Path(mp3).unlink(missing_ok=True)
 

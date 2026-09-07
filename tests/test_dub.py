@@ -73,6 +73,61 @@ def test_synthesize_all_parallel_preserves_order(tmp_path):
     assert len(seen) == 12 and max(seen) <= 99  # 100 is emitted later, after concat
 
 
+def test_synthesize_all_falls_back_to_silence_on_failure(tmp_path):
+    import wave
+
+    from dub.audio import _synthesize_all
+
+    cues = [VoiceCue(0, 1, f"line{i}") for i in range(3)]
+    clips = [tmp_path / f"c{i}.wav" for i in range(3)]
+
+    class FlakyBackend:
+        max_workers = 1
+
+        def synthesize(self, text, out):
+            if text == "line1":
+                raise RuntimeError("No audio was received")
+            Path(out).write_text(text)
+
+    _synthesize_all(cues, clips, FlakyBackend(), None)
+
+    assert clips[0].read_text() == "line0"  # good cues synthesized
+    assert clips[2].read_text() == "line2"
+    with wave.open(str(clips[1]), "rb") as w:  # bad cue → valid silence wav
+        assert w.getframerate() == 24_000 and w.getnframes() > 0
+
+
+def test_scale_remaps_progress_band():
+    from dub.audio import _scale
+
+    seen: list[int] = []
+    s = _scale(seen.append, 0, 80)
+    s(0); s(50); s(100)
+    assert seen == [0, 40, 80]
+    assert _scale(None, 0, 80) is None
+
+
+def test_dub_video_reports_actual_voice(tmp_path, monkeypatch):
+    import dub.pipeline as pipe
+
+    ass = _bilingual_ass(tmp_path)
+    video = tmp_path / "v.mp4"
+    video.write_bytes(b"x")
+    monkeypatch.setattr(pipe, "build_dub_track", lambda *a, **k: tmp_path / "dub.wav")
+    monkeypatch.setattr(pipe, "mux_audio", lambda v, a, o: Path(o).write_bytes(b"y"))
+
+    class FakeVoice:
+        name = "edge-tts"
+        voice = "zh-CN-YunxiNeural"
+
+        def synthesize(self, text, out):
+            pass
+
+    res = pipe.dub_video(video, ass, FakeVoice(), tmp_path / "out.mp4")
+    assert res.ok
+    assert res.voice == "zh-CN-YunxiNeural"  # the voice, not the engine name
+
+
 def test_get_voice_backend_engine_selection(monkeypatch):
     import dub.backend as db
 

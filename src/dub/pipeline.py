@@ -25,7 +25,8 @@ def dub_video(
     """Produce a Chinese-dubbed copy of `video_path`. Never raises."""
     video = Path(video_path)
     out = Path(out_path) if out_path else default_dub_output(video)
-    voice = getattr(backend, "name", "")
+    # The actual voice (e.g. zh-CN-YunxiNeural), not the engine name.
+    voice = getattr(backend, "voice", "") or getattr(backend, "name", "")
 
     cues = chinese_cues(ass_path)
     if not cues:

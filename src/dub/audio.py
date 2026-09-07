@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import subprocess
 import threading
+import wave
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable
@@ -77,27 +78,42 @@ def build_dub_track(
     runner: Runner = _run,
     on_progress: ProgressFn | None = None,
 ) -> Path:
-    """Synthesize each cue, fit it to its window, and concat into `out_wav`."""
+    """Synthesize each cue, fit it to its window, and concat into `out_wav`.
+
+    Progress spans both phases so it never stalls: synthesis reports 0–80%,
+    the per-clip fit/concat assembly reports 80–99%, and the final mux lands
+    at 100%.
+    """
     total = len(cues)
     clips = [workdir / f"clip{i:04d}.wav" for i in range(total)]
-    _synthesize_all(cues, clips, backend, on_progress)
+    _synthesize_all(cues, clips, backend, _scale(on_progress, 0, 80))
 
     durations = [probe_duration(c, runner) for c in clips]
     pieces = plan_timeline(cues, durations)
 
     segments: list[Path] = []
-    for p in pieces:
+    for i, p in enumerate(pieces, start=1):
         seg = workdir / f"seg{len(segments):04d}.wav"
         if p.kind == "silence":
             _silence(seg, p.seconds, runner)
         else:
             _fit(clips[p.clip_index], p.tempo, seg, runner)
         segments.append(seg)
+        if on_progress is not None:
+            on_progress(80 + min(19, int(i * 19 / len(pieces))))
 
     _concat(segments, out_wav, workdir, runner)
     if on_progress is not None:
         on_progress(100)
     return out_wav
+
+
+def _scale(on_progress: ProgressFn | None, lo: int, hi: int) -> ProgressFn | None:
+    """Remap a 0–100 progress callback onto the [lo, hi] band."""
+    if on_progress is None:
+        return None
+    span = hi - lo
+    return lambda pct: on_progress(lo + int(pct * span / 100))
 
 
 def _synthesize_all(cues, clips, backend, on_progress) -> None:
@@ -110,9 +126,18 @@ def _synthesize_all(cues, clips, backend, on_progress) -> None:
     total = len(cues)
     workers = max(1, int(getattr(backend, "max_workers", 1)))
 
+    def synth_one(i: int) -> None:
+        # A single cue that keeps failing (e.g. edge-tts "no audio") becomes a
+        # short silence rather than sinking the whole dub.
+        try:
+            backend.synthesize(cues[i].text, clips[i])
+        except Exception as err:
+            log.warning("dub: cue %d failed (%s); using silence", i + 1, err)
+            _write_silence_wav(clips[i], 0.4)
+
     if workers == 1:
-        for i, cue in enumerate(cues):
-            backend.synthesize(cue.text, clips[i])
+        for i in range(total):
+            synth_one(i)
             if on_progress is not None:
                 on_progress(min(99, int((i + 1) * 100 / total)))
         return
@@ -122,15 +147,24 @@ def _synthesize_all(cues, clips, backend, on_progress) -> None:
 
     def synth(i: int) -> None:
         nonlocal done
-        backend.synthesize(cues[i].text, clips[i])
+        synth_one(i)
         with lock:
             done += 1
             if on_progress is not None:
                 on_progress(min(99, int(done * 100 / total)))
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        for _ in pool.map(synth, range(total)):  # re-raises the first failure
+        for _ in pool.map(synth, range(total)):
             pass
+
+
+def _write_silence_wav(path: Path, seconds: float) -> None:
+    frames = int(SAMPLE_RATE * seconds)
+    with wave.open(str(path), "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(SAMPLE_RATE)
+        wav.writeframes(b"\x00\x00" * frames)
 
 
 def mux_audio(video: Path, audio: Path, out: Path, runner: Runner = _run) -> None:
