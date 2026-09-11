@@ -78,6 +78,7 @@ def _run_pipeline(args) -> int:
             )
 
     voice_backend = None
+    voice_server = None
     if not args.no_dub:
         voice_backend = get_voice_backend(args.voice, args.dub_engine)
         if voice_backend is None:
@@ -86,6 +87,10 @@ def _run_pipeline(args) -> int:
                 "uv sync --extra dub  (edge-tts) or set up Kokoro.",
                 file=sys.stderr,
             )
+        elif getattr(voice_backend, "name", "") == "gpt-sovits":
+            from dub.server import VoiceServer  # auto-start/stop the local server
+
+            voice_server = VoiceServer()
 
     policy = RetryPolicy(attempts=args.attempts, base_delay=args.retry_delay)
     download_kwargs = {
@@ -104,6 +109,7 @@ def _run_pipeline(args) -> int:
                 metadata_backend=metadata_backend,
                 transcriber=transcriber,
                 voice_backend=voice_backend,
+                voice_server=voice_server,
                 policy=policy,
                 output_dir=args.output_dir,
                 store=store,
@@ -115,6 +121,8 @@ def _run_pipeline(args) -> int:
     finally:
         if store is not None:
             store.close()
+        if voice_server is not None:
+            voice_server.close()  # auto-stop the server if we started it
     return 1 if failures else 0
 
 

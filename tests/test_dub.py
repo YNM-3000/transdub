@@ -74,6 +74,51 @@ def test_get_voice_backend_gpt_sovits_engine():
     assert isinstance(get_voice_backend(engine="gpt-sovits"), GPTSoVITSBackend)
 
 
+def test_voice_server_uses_running_server_without_starting(monkeypatch):
+    import dub.server as srv
+
+    monkeypatch.setattr(srv, "reachable", lambda url: True)
+    started = {"n": 0}
+    monkeypatch.setattr(srv, "_launch", lambda url: started.__setitem__("n", started["n"] + 1))
+
+    s = srv.VoiceServer("http://x")
+    assert s.ensure() is True
+    assert started["n"] == 0  # already up → not started
+    s.close()  # no-op (we didn't start it)
+
+
+def test_voice_server_skips_when_not_installed(monkeypatch):
+    import dub.server as srv
+
+    monkeypatch.setattr(srv, "reachable", lambda url: False)
+    monkeypatch.setattr(srv, "is_installed", lambda: False)
+    assert srv.VoiceServer("http://x").ensure() is False
+
+
+def test_voice_server_starts_and_stops_when_down_but_installed(monkeypatch):
+    import dub.server as srv
+
+    state = {"up": False, "stopped": False}
+    monkeypatch.setattr(srv, "reachable", lambda url: state["up"])
+    monkeypatch.setattr(srv, "is_installed", lambda: True)
+
+    class FakeProc:
+        def terminate(self): state["stopped"] = True
+        def wait(self, timeout=0): return 0
+        def kill(self): state["stopped"] = True
+
+    def fake_launch(url):
+        state["up"] = True  # server becomes reachable
+        return FakeProc()
+
+    monkeypatch.setattr(srv, "_launch", fake_launch)
+
+    s = srv.VoiceServer("http://x")
+    assert s.ensure() is True
+    s.close()
+    assert state["stopped"] is True  # we started it → we stop it
+
+
 def test_gptsovits_synthesize_posts_reference_and_text(tmp_path, monkeypatch):
     import dub.gptsovits_backend as gs
 
@@ -242,7 +287,7 @@ def test_dub_video_reports_actual_voice(tmp_path, monkeypatch):
 def test_get_voice_backend_engine_selection(monkeypatch):
     import dub.backend as db
 
-    monkeypatch.setattr(db, "_try_gptsovits", lambda v, *, require_reachable: None)  # server down
+    monkeypatch.setattr(db, "_try_gptsovits", lambda v, *, auto: None)  # server down
     monkeypatch.setattr(db, "_try_edge", lambda v: "EDGE")
     monkeypatch.setattr(db, "_try_kokoro", lambda v: "KOKORO")
     monkeypatch.delenv("DUB_ENGINE", raising=False)
@@ -261,7 +306,7 @@ def test_get_voice_backend_engine_selection(monkeypatch):
 def test_get_voice_backend_auto_prefers_gptsovits_when_reachable(monkeypatch):
     import dub.backend as db
 
-    monkeypatch.setattr(db, "_try_gptsovits", lambda v, *, require_reachable: "SOVITS")
+    monkeypatch.setattr(db, "_try_gptsovits", lambda v, *, auto: "SOVITS")
     monkeypatch.setattr(db, "_try_edge", lambda v: "EDGE")
     monkeypatch.delenv("DUB_ENGINE", raising=False)
     assert db.get_voice_backend() == "SOVITS"  # auto default is now GPT-SoVITS
@@ -274,7 +319,7 @@ def test_gptsovits_voice_override_sets_reference(tmp_path):
     ref.write_bytes(b"x")
     (tmp_path / "myvoice.txt").write_text("hand picked transcript", encoding="utf-8")
 
-    b = _try_gptsovits(str(ref), require_reachable=False)
+    b = _try_gptsovits(str(ref), auto=False)
     assert b.ref_audio.endswith("myvoice.wav")
     assert b.ref_text == "hand picked transcript"
     assert b.voice_label == "myvoice"

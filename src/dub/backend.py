@@ -44,9 +44,9 @@ def get_voice_backend(
     if choice == "kokoro":
         return _try_kokoro(voice)
     if choice in ("gpt-sovits", "gptsovits", "sovits"):
-        return _try_gptsovits(voice, require_reachable=False)
+        return _try_gptsovits(voice, auto=False)
 
-    sovits = _try_gptsovits(voice, require_reachable=True)
+    sovits = _try_gptsovits(voice, auto=True)
     if sovits is not None:
         log.info("dub: using GPT-SoVITS voice backend (channel-cloned voice)")
         return sovits
@@ -64,12 +64,17 @@ def get_voice_backend(
     return None
 
 
-def _try_gptsovits(voice: str | None, *, require_reachable: bool):
+def _try_gptsovits(voice: str | None, *, auto: bool):
     from .gptsovits_backend import GPTSoVITSBackend, reachable
 
     backend = GPTSoVITSBackend()
-    if require_reachable and not reachable(backend.url):
-        return None
+    if auto:
+        # In auto mode prefer GPT-SoVITS when its server is up OR installed
+        # (it can be auto-started); otherwise let auto fall through to edge.
+        from .server import is_installed
+
+        if not (reachable(backend.url) or is_installed()):
+            return None
     if voice:  # a hand-picked reference clip overrides the auto-cut channel voice
         backend.set_reference_from_path(voice)
     return backend

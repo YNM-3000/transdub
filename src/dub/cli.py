@@ -103,10 +103,23 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    result = dub_video(
-        args.video, args.subtitle, backend, args.output,
-        on_progress=obs.make_progress("dub", _log),
-    )
+    # GPT-SoVITS: auto-start its server if down, and stop it when we're done.
+    server = None
+    if getattr(backend, "name", "") == "gpt-sovits":
+        from .server import VoiceServer
+
+        server = VoiceServer()
+        server.ensure()
+
+    try:
+        result = dub_video(
+            args.video, args.subtitle, backend, args.output,
+            on_progress=obs.make_progress("dub", _log),
+        )
+    finally:
+        if server is not None:
+            server.close()
+
     if not result.ok:
         print(f"✗ dub failed\n    {result.error}", file=sys.stderr)
         return 1
