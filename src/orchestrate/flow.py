@@ -157,6 +157,16 @@ def run_full(
     # A dub failure is non-fatal — it's an extra artifact, not a gate.
     dub: DubResult | None = None
     if voice_backend is not None:
+        # GPT-SoVITS is memory-heavy; free the local LLM's RAM first.
+        if getattr(voice_backend, "name", "") == "gpt-sovits":
+            try:
+                from translate.ollama_backend import unload as _unload_ollama
+
+                freed = _unload_ollama()
+                if freed:
+                    log.info("freed local LLM memory before dub: %s", ", ".join(freed))
+            except Exception:
+                pass
         dub = _timed("dub", lambda: retry(
             lambda: dub_video(
                 cmp.out_path, tr.ass_path, voice_backend,

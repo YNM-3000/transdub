@@ -57,9 +57,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("video", nargs="?", help="the (final) video file to dub")
     parser.add_argument("subtitle", nargs="?", help="bilingual .ass subtitle (the dub script)")
     parser.add_argument("-o", "--output", help="explicit output path")
-    parser.add_argument("--voice", help="override the voice (engine-specific)")
     parser.add_argument(
-        "--engine", help="voice engine: edge, kokoro, or gpt-sovits (default: auto)",
+        "--voice",
+        help="edge/kokoro: a voice name; gpt-sovits: a reference-clip path "
+             "(default: auto-cut channel voice)",
+    )
+    parser.add_argument(
+        "--engine",
+        help="voice engine: gpt-sovits, edge, or kokoro "
+             "(default: auto = GPT-SoVITS if its server is up, else edge)",
     )
     parser.add_argument(
         "--list-voices", action="store_true",

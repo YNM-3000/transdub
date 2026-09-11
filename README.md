@@ -139,18 +139,24 @@ uv run recreator-data show VIDEO_ID
   Claude on any chunk it flubs.
 - **Dubbing** synthesizes each Chinese line and fits it to its cue's time
   window (speed-up capped) so speech stays locked to the picture, then replaces
-  the audio. edge-tts is the default voice (more natural, handles embedded
-  English; synthesized concurrently to hide network latency); local Kokoro is
-  the offline fallback (`DUB_ENGINE=kokoro`, needs `--extra dub-kokoro` + the
-  Kokoro model files in `KOKORO_MODEL`/`KOKORO_VOICES`).
+  the audio. The default (`auto`) uses **GPT-SoVITS channel-voice cloning** when
+  its server is reachable (see below), otherwise **edge-tts** (`zh-CN-Xiaoxiao`,
+  synthesized concurrently to hide network latency); local **Kokoro** is the
+  offline option (`DUB_ENGINE=kokoro`, needs `--extra dub-kokoro` + Kokoro model
+  files). Pick explicitly with `--dub-engine` / `$DUB_ENGINE`.
 
 ### Voice cloning — dub in the channel's own voice (GPT-SoVITS)
 
-`DUB_ENGINE=gpt-sovits` clones the **original creator's voice** for the Chinese
-dub. A short reference clip is cut automatically from the source audio (using a
-mid-video subtitle window as the transcript) and cached per channel under
-`models/refs/<channel>.wav`, so every video from a channel is dubbed in the
-same cloned voice.
+GPT-SoVITS clones the **original creator's voice** for the Chinese dub, and is
+the **default engine** when its server is reachable (`auto` falls back to
+edge-tts otherwise). A short reference clip is cut automatically from the source
+audio (using a mid-video subtitle window as the transcript) and cached per
+channel under `models/refs/<channel>.wav`, so every video from a channel is
+dubbed in the same cloned voice. Hand-pick a cleaner reference with
+`--voice /path/clip.wav` (a sibling `clip.txt` supplies its transcript).
+
+When GPT-SoVITS is used inside `recreator-run`, the local Ollama model is
+unloaded first to free memory before the (heavier) dub.
 
 GPT-SoVITS is heavy PyTorch, so it runs as its own local server (works on
 Apple Silicon) and recreator talks to it over HTTP:

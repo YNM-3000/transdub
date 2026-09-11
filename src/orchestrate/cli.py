@@ -149,10 +149,14 @@ def main(argv: list[str] | None = None) -> int:
         help="don't produce the Chinese-voice dubbed variant (on by default)",
     )
     parser.add_argument(
-        "--voice", help="dub voice (e.g. zh-CN-YunxiNeural for edge-tts)",
+        "--voice",
+        help="edge/kokoro: a voice name (e.g. zh-CN-YunxiNeural); "
+             "gpt-sovits: a reference-clip path (default: auto-cut channel voice)",
     )
     parser.add_argument(
-        "--dub-engine", help="dub engine: edge, kokoro, or gpt-sovits (default: auto)",
+        "--dub-engine",
+        help="dub engine: gpt-sovits, edge, or kokoro "
+             "(default: auto = GPT-SoVITS if its server is up, else edge)",
     )
     parser.add_argument("--attempts", type=int, default=3, help="retry attempts per stage")
     parser.add_argument("--retry-delay", type=float, default=2.0, help="base retry backoff (seconds)")

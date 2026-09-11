@@ -45,6 +45,16 @@ class GPTSoVITSBackend:
         self.ref_text = text
         self.ref_lang = lang
 
+    def set_reference_from_path(self, path: str | Path) -> None:
+        """Use a hand-picked reference clip. A sibling `<name>.txt`, if present,
+        supplies its transcript (improves cloning); language via
+        $GPT_SOVITS_PROMPT_LANG (default en)."""
+        clip = Path(path)
+        txt = clip.with_suffix(".txt")
+        prompt = txt.read_text(encoding="utf-8").strip() if txt.is_file() else ""
+        self.set_reference(clip, prompt, os.environ.get("GPT_SOVITS_PROMPT_LANG", "en"))
+        self.voice_label = clip.stem
+
     def describe(self) -> str:
         return f"local · gpt-sovits:{self.voice_label}"
 
@@ -63,6 +73,17 @@ class GPTSoVITSBackend:
         }
         audio = self._transport(body) if self._transport else _post_tts(self.url, body)
         _to_wav(audio, Path(out_path))
+
+
+def reachable(url: str) -> bool:
+    """True if a GPT-SoVITS server responds at `url` (any HTTP reply counts)."""
+    try:
+        urllib.request.urlopen(url, timeout=1.5)
+        return True
+    except urllib.error.HTTPError:
+        return True  # e.g. 404 on / — the server is up
+    except Exception:
+        return False
 
 
 def _post_tts(url: str, body: dict) -> bytes:

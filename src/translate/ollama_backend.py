@@ -44,6 +44,31 @@ def available_models(server: str | None = None) -> list[str]:
     return [m.get("name", "") for m in data.get("models", []) if m.get("name")]
 
 
+def unload(server: str | None = None) -> list[str]:
+    """Ask Ollama to unload any resident models (keep_alive=0) to free memory.
+
+    Returns the names it tried to unload. Best-effort and silent on failure —
+    used before a memory-heavy dub engine (GPT-SoVITS) runs.
+    """
+    base = (server or host()).rstrip("/")
+    try:
+        with urllib.request.urlopen(f"{base}/api/ps", timeout=CONNECT_TIMEOUT_S) as resp:
+            loaded = [m.get("name", "") for m in json.load(resp).get("models", [])]
+    except Exception:
+        return []
+    for model in filter(None, loaded):
+        try:
+            req = urllib.request.Request(
+                f"{base}/api/generate",
+                data=json.dumps({"model": model, "keep_alive": 0}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+            )
+            urllib.request.urlopen(req, timeout=10.0).read()
+        except Exception:
+            pass
+    return loaded
+
+
 def pick_model(names: list[str]) -> str | None:
     """Choose the most Chinese-capable model from `names`."""
     for pref in PREFERRED:

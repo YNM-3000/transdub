@@ -242,11 +242,12 @@ def test_dub_video_reports_actual_voice(tmp_path, monkeypatch):
 def test_get_voice_backend_engine_selection(monkeypatch):
     import dub.backend as db
 
+    monkeypatch.setattr(db, "_try_gptsovits", lambda v, *, require_reachable: None)  # server down
     monkeypatch.setattr(db, "_try_edge", lambda v: "EDGE")
     monkeypatch.setattr(db, "_try_kokoro", lambda v: "KOKORO")
     monkeypatch.delenv("DUB_ENGINE", raising=False)
 
-    assert db.get_voice_backend() == "EDGE"  # auto prefers edge-tts now
+    assert db.get_voice_backend() == "EDGE"  # auto → edge when GPT-SoVITS unreachable
     assert db.get_voice_backend(engine="kokoro") == "KOKORO"
 
     monkeypatch.setenv("DUB_ENGINE", "kokoro")
@@ -255,3 +256,53 @@ def test_get_voice_backend_engine_selection(monkeypatch):
     monkeypatch.delenv("DUB_ENGINE", raising=False)
     monkeypatch.setattr(db, "_try_edge", lambda v: None)
     assert db.get_voice_backend() == "KOKORO"  # auto falls back when edge absent
+
+
+def test_get_voice_backend_auto_prefers_gptsovits_when_reachable(monkeypatch):
+    import dub.backend as db
+
+    monkeypatch.setattr(db, "_try_gptsovits", lambda v, *, require_reachable: "SOVITS")
+    monkeypatch.setattr(db, "_try_edge", lambda v: "EDGE")
+    monkeypatch.delenv("DUB_ENGINE", raising=False)
+    assert db.get_voice_backend() == "SOVITS"  # auto default is now GPT-SoVITS
+
+
+def test_gptsovits_voice_override_sets_reference(tmp_path):
+    from dub.backend import _try_gptsovits
+
+    ref = tmp_path / "myvoice.wav"
+    ref.write_bytes(b"x")
+    (tmp_path / "myvoice.txt").write_text("hand picked transcript", encoding="utf-8")
+
+    b = _try_gptsovits(str(ref), require_reachable=False)
+    assert b.ref_audio.endswith("myvoice.wav")
+    assert b.ref_text == "hand picked transcript"
+    assert b.voice_label == "myvoice"
+
+
+def test_ollama_unload_calls_generate_keepalive_zero(monkeypatch):
+    import json as _json
+    from translate import ollama_backend as ob
+
+    calls = []
+
+    class Resp:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self): return b""
+
+        @staticmethod
+        def _ps():
+            return _json.dumps({"models": [{"name": "qwen3.5:9b"}]}).encode()
+
+    def fake_urlopen(req, timeout=0):
+        url = req if isinstance(req, str) else req.full_url
+        if url.endswith("/api/ps"):
+            r = Resp(); r.read = lambda: Resp._ps(); return r
+        calls.append(_json.loads(req.data))  # the /api/generate unload body
+        return Resp()
+
+    monkeypatch.setattr(ob.urllib.request, "urlopen", fake_urlopen)
+    freed = ob.unload()
+    assert freed == ["qwen3.5:9b"]
+    assert calls == [{"model": "qwen3.5:9b", "keep_alive": 0}]

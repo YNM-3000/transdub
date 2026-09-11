@@ -32,10 +32,10 @@ def get_voice_backend(
 ) -> VoiceBackend | None:
     """Build a voice backend, or None if none is usable.
 
-    `engine` (or $DUB_ENGINE) forces "edge"/"edge-tts" or "kokoro". Default
-    "auto" prefers **edge-tts** (more natural, better with embedded English)
-    and falls back to local Kokoro (offline). `voice` overrides the default
-    voice for whichever engine is chosen.
+    `engine` (or $DUB_ENGINE) forces "gpt-sovits", "edge"/"edge-tts", or
+    "kokoro". Default "auto" prefers **GPT-SoVITS** channel-voice cloning when
+    its server is reachable, then edge-tts, then local Kokoro. For GPT-SoVITS,
+    `voice` is a reference-clip path; for edge/Kokoro it's a voice name.
     """
     choice = (engine or os.environ.get("DUB_ENGINE", "auto")).strip().lower()
 
@@ -44,10 +44,12 @@ def get_voice_backend(
     if choice == "kokoro":
         return _try_kokoro(voice)
     if choice in ("gpt-sovits", "gptsovits", "sovits"):
-        from .gptsovits_backend import GPTSoVITSBackend
+        return _try_gptsovits(voice, require_reachable=False)
 
+    sovits = _try_gptsovits(voice, require_reachable=True)
+    if sovits is not None:
         log.info("dub: using GPT-SoVITS voice backend (channel-cloned voice)")
-        return GPTSoVITSBackend()
+        return sovits
 
     edge = _try_edge(voice)
     if edge is not None:
@@ -56,10 +58,21 @@ def get_voice_backend(
 
     kokoro = _try_kokoro(voice)
     if kokoro is not None:
-        log.info("dub: using Kokoro voice backend (edge-tts unavailable)")
+        log.info("dub: using Kokoro voice backend")
         return kokoro
 
     return None
+
+
+def _try_gptsovits(voice: str | None, *, require_reachable: bool):
+    from .gptsovits_backend import GPTSoVITSBackend, reachable
+
+    backend = GPTSoVITSBackend()
+    if require_reachable and not reachable(backend.url):
+        return None
+    if voice:  # a hand-picked reference clip overrides the auto-cut channel voice
+        backend.set_reference_from_path(voice)
+    return backend
 
 
 def _try_kokoro(voice: str | None):
