@@ -23,6 +23,41 @@ MIN_SECONDS = 4.0   # GPT-SoVITS wants a 3–10s reference
 MAX_SECONDS = 10.0
 
 
+REGISTER_MAX_SECONDS = 10.0  # GPT-SoVITS prefers a short reference
+
+
+def register_reference(
+    media: str | Path,
+    transcriber,
+    *,
+    name: str | None = None,
+    refs_dir: str | Path = DEFAULT_REFS_DIR,
+    max_seconds: float = REGISTER_MAX_SECONDS,
+    runner=subprocess.run,
+) -> tuple[Path, str, str]:
+    """Register a custom reference voice from any audio/video file.
+
+    Extracts a short clean clip to `models/refs/<name>.wav`, transcribes it with
+    `transcriber` (Whisper) into `<name>.txt`, and records the detected language
+    in `<name>.lang`. Returns (wav, transcript, lang). `name` defaults to the
+    media's filename; reuse it later via `--voice <name>`.
+    """
+    media = Path(media)
+    stem = name or media.stem
+    out = Path(refs_dir) / f"{stem}.wav"
+    out.parent.mkdir(parents=True, exist_ok=True)
+
+    _extract_audio(media, 0.0, max_seconds, out, runner)  # -t caps at max_seconds
+    segments = transcriber.transcribe(out)
+    transcript = " ".join(s.text.strip() for s in segments if s.text.strip()).strip()
+    lang = getattr(transcriber, "detected_language", None) or "auto"
+
+    out.with_suffix(".txt").write_text(transcript, encoding="utf-8")
+    out.with_suffix(".lang").write_text(lang, encoding="utf-8")
+    log.info("dub: registered reference voice %r (%s): %s", stem, lang, transcript[:60])
+    return out, transcript, lang
+
+
 def channel_of(video: Path) -> str:
     """Channel name = the video's enclosing directory (mirrors the layout)."""
     return video.parent.name or "voice"

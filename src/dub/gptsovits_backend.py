@@ -46,13 +46,25 @@ class GPTSoVITSBackend:
         self.ref_lang = lang
 
     def set_reference_from_path(self, path: str | Path) -> None:
-        """Use a hand-picked reference clip. A sibling `<name>.txt`, if present,
-        supplies its transcript (improves cloning); language via
-        $GPT_SOVITS_PROMPT_LANG (default en)."""
+        """Use a hand-picked / registered reference clip.
+
+        Accepts a full path OR a bare registered name (resolved to
+        `models/refs/<name>.wav`). Sibling `<name>.txt` supplies the transcript
+        and `<name>.lang` the language (else $GPT_SOVITS_PROMPT_LANG, default en).
+        """
         clip = Path(path)
+        if not clip.is_file():  # bare registered name → models/refs/<name>.wav
+            candidate = Path("models/refs") / f"{clip.name}.wav"
+            if candidate.is_file():
+                clip = candidate
         txt = clip.with_suffix(".txt")
+        lang_file = clip.with_suffix(".lang")
         prompt = txt.read_text(encoding="utf-8").strip() if txt.is_file() else ""
-        self.set_reference(clip, prompt, os.environ.get("GPT_SOVITS_PROMPT_LANG", "en"))
+        lang = (
+            lang_file.read_text(encoding="utf-8").strip() if lang_file.is_file()
+            else os.environ.get("GPT_SOVITS_PROMPT_LANG", "en")
+        )
+        self.set_reference(clip, prompt, lang)
         self.voice_label = clip.stem
 
     def describe(self) -> str:

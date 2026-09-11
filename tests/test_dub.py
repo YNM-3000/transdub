@@ -74,6 +74,49 @@ def test_get_voice_backend_gpt_sovits_engine():
     assert isinstance(get_voice_backend(engine="gpt-sovits"), GPTSoVITSBackend)
 
 
+def test_register_reference_writes_clip_text_and_lang(tmp_path):
+    from dub.reference import register_reference
+
+    media = tmp_path / "Nanami Kento.mp4"
+    media.write_bytes(b"x")
+    refs = tmp_path / "refs"
+
+    class FakeTranscriber:
+        detected_language = "ja"
+
+        def transcribe(self, path):
+            return [VoiceCue(0, 2, "仕事だ。"), VoiceCue(2, 4, "以上。")]
+
+    def fake_ffmpeg(cmd, capture_output=True, text=True):
+        Path(cmd[-1]).write_bytes(b"RIFFfake")
+        return __import__("types").SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    wav, text, lang = register_reference(
+        media, FakeTranscriber(), refs_dir=refs, runner=fake_ffmpeg
+    )
+    assert wav == refs / "Nanami Kento.wav" and wav.is_file()
+    assert text == "仕事だ。 以上。" and lang == "ja"
+    assert (refs / "Nanami Kento.txt").read_text(encoding="utf-8") == "仕事だ。 以上。"
+    assert (refs / "Nanami Kento.lang").read_text(encoding="utf-8") == "ja"
+
+
+def test_set_reference_from_path_resolves_name_and_lang(tmp_path, monkeypatch):
+    from dub.gptsovits_backend import GPTSoVITSBackend
+
+    refs = tmp_path / "models" / "refs"
+    refs.mkdir(parents=True)
+    (refs / "Nanami.wav").write_bytes(b"x")
+    (refs / "Nanami.txt").write_text("仕事だ。", encoding="utf-8")
+    (refs / "Nanami.lang").write_text("ja", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    b = GPTSoVITSBackend()
+    b.set_reference_from_path("Nanami")  # bare name → models/refs/Nanami.wav
+    assert b.ref_audio.endswith("Nanami.wav")
+    assert b.ref_text == "仕事だ。" and b.ref_lang == "ja"
+    assert b.voice_label == "Nanami"
+
+
 def test_voice_server_uses_running_server_without_starting(monkeypatch):
     import dub.server as srv
 

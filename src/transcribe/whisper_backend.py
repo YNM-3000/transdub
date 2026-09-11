@@ -31,12 +31,13 @@ class WhisperBackend:
         model: str = DEFAULT_MODEL,
         device: str = "cpu",
         compute_type: str = "int8",
-        language: str = "en",
+        language: str | None = "en",
     ) -> None:
         self.model_name = model
         self.device = device
         self.compute_type = compute_type
-        self.language = language
+        self.language = language  # None → auto-detect
+        self.detected_language: str | None = None
         self._model = None
 
     def describe(self) -> str:
@@ -64,6 +65,7 @@ class WhisperBackend:
             segments, info = model.transcribe(
                 str(audio), language=self.language, vad_filter=True
             )
+            self.detected_language = getattr(info, "language", None) or self.language
             duration = getattr(info, "duration", 0) or 0
             out: list[Segment] = []
             last = -5

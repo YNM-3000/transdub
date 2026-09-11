@@ -27,6 +27,7 @@ def get_transcriber(
     model: str | None = None,
     device: str | None = None,
     compute_type: str | None = None,
+    language: str | None = "en",
 ) -> Transcriber | None:
     """Build the default Whisper transcriber.
 
@@ -45,4 +46,5 @@ def get_transcriber(
         model=model or os.environ.get("WHISPER_MODEL", "small"),
         device=device or os.environ.get("WHISPER_DEVICE", "cpu"),
         compute_type=compute_type or os.environ.get("WHISPER_COMPUTE", "int8"),
+        language=language,
     )

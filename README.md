@@ -152,8 +152,19 @@ the **default engine** when its server is reachable (`auto` falls back to
 edge-tts otherwise). A short reference clip is cut automatically from the source
 audio (using a mid-video subtitle window as the transcript) and cached per
 channel under `models/refs/<channel>.wav`, so every video from a channel is
-dubbed in the same cloned voice. Hand-pick a cleaner reference with
-`--voice /path/clip.wav` (a sibling `clip.txt` supplies its transcript).
+dubbed in the same cloned voice.
+
+To use a **custom voice**, register any audio/video clip once — it extracts a
+short reference, auto-transcribes it with Whisper, and stores it under
+`models/refs/` (needs `--extra asr`):
+
+```bash
+uv run recreator-dub --register "clip.mp4" [--name MyVoice]
+uv run recreator-run "…VIDEO…" --voice MyVoice     # reuse by name
+```
+
+Or hand-pick a reference inline with `--voice /path/clip.wav` (a sibling
+`clip.txt` supplies its transcript, `clip.lang` its language).
 
 When GPT-SoVITS is used inside `recreator-run`, the local Ollama model is
 unloaded first to free memory before the (heavier) dub.

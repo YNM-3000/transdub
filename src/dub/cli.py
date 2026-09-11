@@ -34,6 +34,29 @@ def _list_voices() -> int:
     return 0
 
 
+def _register_voice(media: str, name: str | None) -> int:
+    from pathlib import Path
+
+    from transcribe.backend import get_transcriber
+    from .reference import register_reference
+
+    if not Path(media).is_file():
+        print(f"error: not found: {media}", file=sys.stderr)
+        return 2
+    transcriber = get_transcriber(language=None)  # auto-detect the speaker's language
+    if transcriber is None:
+        print("error: faster-whisper not installed (uv sync --extra asr)", file=sys.stderr)
+        return 2
+
+    print(f"registering reference voice from {media} …")
+    wav, transcript, lang = register_reference(media, transcriber, name=name)
+    print(f"✓ registered '{wav.stem}' ({lang})")
+    print(f"    clip: {wav}")
+    print(f"    text: {transcript}")
+    print(f'    use:  recreator-dub … --voice "{wav.stem}"')
+    return 0
+
+
 def _write_samples(out_dir: str, text: str) -> int:
     from .edge_backend import EdgeBackend
 
@@ -76,6 +99,12 @@ def main(argv: list[str] | None = None) -> int:
         help="synthesize a short clip in every edge-tts Chinese voice into DIR and exit",
     )
     parser.add_argument("--sample-text", default=SAMPLE_TEXT, help="text for --samples")
+    parser.add_argument(
+        "--register", metavar="MEDIA",
+        help="register MEDIA (audio/video) as a reusable GPT-SoVITS reference "
+             "voice under models/refs/, then exit (use later via --voice <name>)",
+    )
+    parser.add_argument("--name", help="name for --register (default: the file name)")
     obs.add_verbose_arg(parser)
     args = parser.parse_args(argv)
     obs.configure(args.verbose)
@@ -84,6 +113,8 @@ def main(argv: list[str] | None = None) -> int:
         return _list_voices()
     if args.samples:
         return _write_samples(args.samples, args.sample_text)
+    if args.register:
+        return _register_voice(args.register, args.name)
 
     if not (args.video and args.subtitle):
         print("error: video and subtitle are required (or use --list-voices)", file=sys.stderr)
