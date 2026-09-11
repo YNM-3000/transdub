@@ -59,6 +59,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("-o", "--output", help="explicit output path")
     parser.add_argument("--voice", help="override the voice (engine-specific)")
     parser.add_argument(
+        "--engine", help="voice engine: edge, kokoro, or gpt-sovits (default: auto)",
+    )
+    parser.add_argument(
         "--list-voices", action="store_true",
         help="list available Chinese voices (and where to listen) and exit",
     )
@@ -85,7 +88,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"error: not found: {path}", file=sys.stderr)
             return 2
 
-    backend = get_voice_backend(args.voice)
+    backend = get_voice_backend(args.voice, args.engine)
     if backend is None:
         print(
             "error: no voice backend available. Install one with: "

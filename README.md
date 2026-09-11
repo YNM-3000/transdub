@@ -144,6 +144,30 @@ uv run recreator-data show VIDEO_ID
   the offline fallback (`DUB_ENGINE=kokoro`, needs `--extra dub-kokoro` + the
   Kokoro model files in `KOKORO_MODEL`/`KOKORO_VOICES`).
 
+### Voice cloning — dub in the channel's own voice (GPT-SoVITS)
+
+`DUB_ENGINE=gpt-sovits` clones the **original creator's voice** for the Chinese
+dub. A short reference clip is cut automatically from the source audio (using a
+mid-video subtitle window as the transcript) and cached per channel under
+`models/refs/<channel>.wav`, so every video from a channel is dubbed in the
+same cloned voice.
+
+GPT-SoVITS is heavy PyTorch, so it runs as its own local server (works on
+Apple Silicon) and recreator talks to it over HTTP:
+
+```bash
+# one-time: set up GPT-SoVITS and download its pretrained models, then:
+python api_v2.py                      # serves 127.0.0.1:9880 (see GPT-SoVITS docs)
+
+# point recreator at it and dub:
+export DUB_ENGINE=gpt-sovits          # or:  --dub-engine gpt-sovits
+export GPT_SOVITS_URL=http://127.0.0.1:9880   # default
+uv run recreator-run "https://www.youtube.com/watch?v=VIDEO_ID"
+```
+
+If the server isn't running, the dub stage fails per-video (non-fatal) with a
+clear "server unreachable" message.
+
 Downloading real YouTube subtitles requires browser cookies (bot check) and a
 JS runtime such as `deno` (challenge solving); the pipeline handles this via
 `--cookies-from-browser` and `--remote-components ejs:npm`.

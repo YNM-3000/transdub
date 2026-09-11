@@ -27,6 +27,117 @@ def test_chinese_cues_takes_first_line_and_strips_tags(tmp_path):
     assert cues[0].start == 0.0 and cues[0].end == 2.0
 
 
+def test_english_cues_takes_second_line(tmp_path):
+    from dub.assread import english_cues
+
+    cues = english_cues(_bilingual_ass(tmp_path))
+    assert [c.text for c in cues] == ["Hello world", "Second line"]
+
+
+def test_pick_reference_window_merges_to_min_length():
+    from dub.reference import pick_reference_window
+
+    cues = [VoiceCue(i * 2.0, i * 2.0 + 2.0, f"line{i}") for i in range(9)]
+    win = pick_reference_window(cues)  # starts a third in (idx 3), merges to >=4s
+    assert win.end - win.start >= 4.0
+    assert win.end - win.start <= 10.0
+    assert "line3" in win.text
+
+
+def test_ensure_reference_cuts_then_caches(tmp_path):
+    from dub.reference import ensure_reference
+
+    video = tmp_path / "Chan" / "clip.mp4"
+    video.parent.mkdir()
+    video.write_bytes(b"x")
+    cues = [VoiceCue(i * 2.0, i * 2.0 + 2.0, f"word{i}") for i in range(9)]
+    refs = tmp_path / "refs"
+    calls = {"n": 0}
+
+    def fake_ffmpeg(cmd, capture_output=True, text=True):
+        calls["n"] += 1
+        Path(cmd[-1]).write_bytes(b"RIFFfake")  # "extract" the clip
+        return __import__("types").SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    ref, prompt = ensure_reference(video, cues, refs_dir=refs, runner=fake_ffmpeg)
+    assert ref == refs / "Chan.wav" and ref.is_file()
+    assert prompt and calls["n"] == 1
+
+    ref2, prompt2 = ensure_reference(video, cues, refs_dir=refs, runner=fake_ffmpeg)
+    assert ref2 == ref and prompt2 == prompt and calls["n"] == 1  # cached, not re-cut
+
+
+def test_get_voice_backend_gpt_sovits_engine():
+    from dub.backend import get_voice_backend
+    from dub.gptsovits_backend import GPTSoVITSBackend
+
+    assert isinstance(get_voice_backend(engine="gpt-sovits"), GPTSoVITSBackend)
+
+
+def test_gptsovits_synthesize_posts_reference_and_text(tmp_path, monkeypatch):
+    import dub.gptsovits_backend as gs
+
+    sent = {}
+    monkeypatch.setattr(gs, "_to_wav", lambda audio, out: Path(out).write_bytes(audio))
+
+    def transport(body):
+        sent.update(body)
+        return b"WAVE"
+
+    b = gs.GPTSoVITSBackend(transport=transport)
+    b.set_reference(tmp_path / "ref.wav", "the reference transcript", "en")
+    b.synthesize("你好，世界", tmp_path / "out.wav")
+
+    assert sent["text"] == "你好，世界"
+    assert sent["prompt_text"] == "the reference transcript"
+    assert sent["prompt_lang"] == "en" and sent["text_lang"] == "zh"
+    assert sent["ref_audio_path"].endswith("ref.wav")
+    assert (tmp_path / "out.wav").read_bytes() == b"WAVE"
+
+
+def test_gptsovits_synthesize_requires_reference(tmp_path):
+    from dub.gptsovits_backend import GPTSoVITSBackend
+
+    import pytest
+
+    with pytest.raises(RuntimeError, match="reference"):
+        GPTSoVITSBackend(transport=lambda b: b"x").synthesize("hi", tmp_path / "o.wav")
+
+
+def test_dub_video_injects_channel_reference(tmp_path, monkeypatch):
+    import dub.pipeline as pipe
+    import dub.reference as ref_mod
+
+    ass = _bilingual_ass(tmp_path)
+    video = tmp_path / "Chan" / "v.mp4"
+    video.parent.mkdir()
+    video.write_bytes(b"x")
+
+    monkeypatch.setattr(ref_mod, "ensure_reference",
+                        lambda v, cues, **k: (tmp_path / "ref.wav", "ref text"))
+    monkeypatch.setattr(pipe, "build_dub_track", lambda *a, **k: tmp_path / "dub.wav")
+    monkeypatch.setattr(pipe, "mux_audio", lambda v, a, o: Path(o).write_bytes(b"y"))
+
+    got = {}
+
+    class CloneBackend:
+        name = "gpt-sovits"
+        needs_reference = True
+        ref_audio = None
+        voice = ""
+
+        def set_reference(self, audio, text, lang="en"):
+            got["ref"] = (str(audio), text, lang)
+            self.ref_audio = str(audio)
+
+        def synthesize(self, text, out):
+            pass
+
+    res = pipe.dub_video(video, ass, CloneBackend(), tmp_path / "out.mp4")
+    assert res.ok
+    assert got["ref"][1] == "ref text" and got["ref"][2] == "en"
+
+
 def test_tempo_for_speeds_up_only_when_too_long():
     assert tempo_for(1.0, 2.0) == 1.0            # shorter than window → no change
     assert tempo_for(3.0, 2.0) == 1.5            # 3s into 2s → 1.5x

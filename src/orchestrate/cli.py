@@ -79,7 +79,7 @@ def _run_pipeline(args) -> int:
 
     voice_backend = None
     if not args.no_dub:
-        voice_backend = get_voice_backend(args.voice)
+        voice_backend = get_voice_backend(args.voice, args.dub_engine)
         if voice_backend is None:
             print(
                 "warning: no voice backend available; skipping dub. Install with: "
@@ -150,6 +150,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--voice", help="dub voice (e.g. zh-CN-YunxiNeural for edge-tts)",
+    )
+    parser.add_argument(
+        "--dub-engine", help="dub engine: edge, kokoro, or gpt-sovits (default: auto)",
     )
     parser.add_argument("--attempts", type=int, default=3, help="retry attempts per stage")
     parser.add_argument("--retry-delay", type=float, default=2.0, help="base retry backoff (seconds)")

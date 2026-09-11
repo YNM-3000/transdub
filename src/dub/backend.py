@@ -43,6 +43,11 @@ def get_voice_backend(
         return _try_edge(voice)
     if choice == "kokoro":
         return _try_kokoro(voice)
+    if choice in ("gpt-sovits", "gptsovits", "sovits"):
+        from .gptsovits_backend import GPTSoVITSBackend
+
+        log.info("dub: using GPT-SoVITS voice backend (channel-cloned voice)")
+        return GPTSoVITSBackend()
 
     edge = _try_edge(voice)
     if edge is not None:
