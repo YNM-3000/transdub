@@ -10,8 +10,10 @@ from __future__ import annotations
 from .models import Piece, VoiceCue
 
 # Cap speed-up so fast lines stay intelligible; beyond this a clip may overrun
-# its window slightly rather than turn into chipmunk speech.
-MAX_TEMPO = 1.6
+# its window slightly rather than turn into chipmunk speech. Chinese dubs of
+# fast talkers routinely need >1.6x, so the cap sits at 2.0 (still intelligible
+# for most voices) to keep drift from accumulating.
+MAX_TEMPO = 2.0
 _EPS = 0.001
 
 
@@ -30,9 +32,12 @@ def plan_timeline(
 ) -> list[Piece]:
     """Build the ordered silence/clip pieces for the whole dub track.
 
-    Cues are assumed sorted and non-overlapping (as ASS cues are). A clip is
-    fitted to its own window, so the running position never exceeds the next
-    cue's start and the dub stays anchored to the picture.
+    Cues are assumed sorted and non-overlapping (as ASS cues are). Each clip is
+    fitted against the time remaining until *its own cue end* measured from the
+    current running position — so when a previous clip overran, this one is
+    compressed harder (up to the tempo cap) to absorb the drift rather than let
+    it accumulate. When there's a gap before a cue, silence re-anchors the dub
+    exactly to that cue's start.
     """
     pieces: list[Piece] = []
     position = 0.0
@@ -42,7 +47,8 @@ def plan_timeline(
             pieces.append(Piece("silence", gap))
             position += gap
 
-        target = max(_EPS, cue.end - cue.start)
+        # Absorb any carried-over drift: fit into what's left of this window.
+        target = max(_EPS, cue.end - position)
         tempo = tempo_for(dur, target, max_tempo)
         fitted = dur / tempo
         pieces.append(Piece("clip", fitted, clip_index=i, tempo=tempo))

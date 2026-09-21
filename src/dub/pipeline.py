@@ -10,6 +10,7 @@ from .assread import chinese_cues
 from .audio import build_dub_track, default_dub_output, mux_audio
 from .backend import VoiceBackend
 from .models import DubResult
+from .segment import merge_into_sentences
 
 log = logging.getLogger("recreator.dub")
 
@@ -28,10 +29,13 @@ def dub_video(
     # The actual voice (e.g. zh-CN-YunxiNeural), not the engine name.
     voice = getattr(backend, "voice", "") or getattr(backend, "name", "")
 
-    cues = chinese_cues(ass_path)
-    if not cues:
+    fragments = chinese_cues(ass_path)
+    if not fragments:
         return DubResult(video, out, ok=False, voice=voice,
                          error=f"no Chinese cues in {ass_path}")
+    # Merge caption fragments into whole sentences so the dub gets natural
+    # prosody and doesn't drift from per-fragment tempo overruns.
+    cues = merge_into_sentences(fragments)
 
     # Cloning backends (GPT-SoVITS) need a reference of the channel's own voice;
     # cut one from the source (or reuse the cached per-channel clip).

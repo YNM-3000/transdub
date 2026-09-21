@@ -137,9 +137,14 @@ uv run recreator-data show VIDEO_ID
 - **Translation** uses a numbered-line text protocol (not JSON — robust to
   punctuation). `auto` runs a local Ollama model per chunk and falls back to
   Claude on any chunk it flubs.
-- **Dubbing** synthesizes each Chinese line and fits it to its cue's time
-  window (speed-up capped) so speech stays locked to the picture, then replaces
-  the audio. The default (`auto`) uses **GPT-SoVITS channel-voice cloning** when
+- **Dubbing** first **merges the caption fragments into whole sentences** (the
+  bilingual subtitle is chopped into ~2s reading windows mid-sentence, which
+  dubs badly), synthesizes each sentence, and fits it to its time window
+  (speed-up capped at 2.0×). Fitting is measured against the time left to each
+  cue's end, so a line that overran is compressed to **absorb the drift** rather
+  than let it accumulate — speech stays locked to the picture even on fast
+  talkers. Then it replaces the audio. The default (`auto`) uses **GPT-SoVITS
+  channel-voice cloning** when
   its server is reachable (see below), otherwise **edge-tts** (`zh-CN-Xiaoxiao`,
   synthesized concurrently to hide network latency); local **Kokoro** is the
   offline option (`DUB_ENGINE=kokoro`, needs `--extra dub-kokoro` + Kokoro model

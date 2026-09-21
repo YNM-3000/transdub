@@ -235,7 +235,7 @@ def test_tempo_for_speeds_up_only_when_too_long():
 
 def test_plan_timeline_places_clips_and_never_drifts():
     cues = [VoiceCue(0.0, 2.0, "a"), VoiceCue(5.0, 6.0, "b")]
-    # clip 0 fits (1.5s <= 2s); clip 1 too long (2s into 1s → 1.6x cap)
+    # clip 0 fits (1.5s <= 2s); clip 1 too long (2s into 1s → 2.0x cap)
     pieces = plan_timeline(cues, [1.5, 2.0])
 
     kinds = [(p.kind, round(p.seconds, 3)) for p in pieces]
@@ -243,9 +243,56 @@ def test_plan_timeline_places_clips_and_never_drifts():
     assert kinds[0][0] == "clip"
     assert kinds[1] == ("silence", 3.5)          # 5.0 - 1.5 placed
     assert kinds[2][0] == "clip"
-    assert pieces[2].tempo == 1.6                 # capped speed-up
-    # running position stays anchored: last clip fitted = 2.0/1.6 = 1.25
-    assert round(pieces[2].seconds, 3) == 1.25
+    assert pieces[2].tempo == 2.0                 # capped speed-up (MAX_TEMPO)
+    # running position stays anchored: last clip fitted = 2.0/2.0 = 1.0
+    assert round(pieces[2].seconds, 3) == 1.0
+
+
+def test_plan_timeline_absorbs_carried_over_drift():
+    # Back-to-back cues, no gaps. Clip 0 overruns its 1s window (3s @ 2.0x cap
+    # → 1.5s), landing 0.5s late. Clip 1 must then compress harder to catch up:
+    # it fits into what's left of its own window (2.0 - 1.5 = 0.5s), not its
+    # nominal 1.0s window.
+    cues = [VoiceCue(0.0, 1.0, "a"), VoiceCue(1.0, 2.0, "b")]
+    pieces = plan_timeline(cues, [3.0, 1.0])
+
+    clips = [p for p in pieces if p.kind == "clip"]
+    assert clips[0].tempo == 2.0                  # first clip hits the cap
+    assert round(clips[0].seconds, 3) == 1.5      # 3.0 / 2.0
+    # second clip: 1.0s of audio into the 0.5s remaining → 2.0x cap, 0.5s
+    assert clips[1].tempo == 2.0
+    assert round(clips[1].seconds, 3) == 0.5
+    # total = 2.0s, exactly the second cue's end — drift fully absorbed
+    assert round(sum(p.seconds for p in pieces), 3) == 2.0
+
+
+def test_merge_into_sentences_groups_until_terminator():
+    from dub.segment import merge_into_sentences
+
+    cues = [
+        VoiceCue(0.0, 2.0, "他刚刚解决了"),
+        VoiceCue(2.0, 4.0, "最难的问题之一。"),
+        VoiceCue(4.0, 6.0, "这真是不可思议"),
+        VoiceCue(6.0, 8.0, "对吧？"),
+    ]
+    merged = merge_into_sentences(cues)
+
+    assert len(merged) == 2
+    assert merged[0] == VoiceCue(0.0, 4.0, "他刚刚解决了最难的问题之一。")
+    assert merged[1] == VoiceCue(4.0, 8.0, "这真是不可思议对吧？")
+
+
+def test_merge_into_sentences_caps_span_without_terminator():
+    from dub.segment import merge_into_sentences
+
+    # No terminators at all; must still flush once the span exceeds max_span.
+    cues = [VoiceCue(float(i), float(i + 1), "字") for i in range(20)]
+    merged = merge_into_sentences(cues, max_span=5.0)
+
+    assert len(merged) > 1
+    assert all((c.end - c.start) <= 5.0 for c in merged)
+    # nothing dropped: concatenated text is preserved in order
+    assert "".join(c.text for c in merged) == "字" * 20
 
 
 def test_default_dub_output_is_sibling_variant():
