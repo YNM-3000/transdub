@@ -83,6 +83,38 @@ Useful flags:
 - `--schedule SECONDS` (+ optional `--max-runs N`) repeat on an interval
 - `-v` verbose (debug) logging
 
+### Resuming an interrupted run
+
+There's no separate resume command — **just run the same URL again**. The flow
+keeps no checkpoint state, but every stage writes its output as a *sibling file*
+next to the video and reuses it, so a re-run skips the work already done and
+continues from where it stopped:
+
+| Stage | Output reused on re-run |
+|-------|-------------------------|
+| download | existing `<video>.mp4` (yt-dlp skips the re-download; info JSON only) |
+| subtitle | existing `<video>.en.srt` (Whisper won't re-transcribe) |
+| translate | existing `<video>.bilingual.ass` is overwritten (cheap) |
+| compose | `<video>.final.mp4` |
+| dub | `<video>.final.dubbed.mp4` |
+
+```bash
+uv run recreator-run "https://www.youtube.com/watch?v=VIDEO_ID"   # picks up where it left off
+```
+
+Runs most often stop in the **dub** stage. If the default GPT-SoVITS engine runs
+out of memory, continue with a lighter path:
+
+```bash
+uv run recreator-run "…VIDEO…" --dub-engine edge     # cloud edge-tts, no local model
+uv run recreator-run "…VIDEO…" --stop-after compose  # finish the subtitled video, dub later
+```
+
+Once a subtitle exists (downloaded or Whisper-made), you can also resume by hand
+with the individual stage commands below — there's no standalone transcribe
+command, so a caption-less video needs one full-flow run first to generate the
+`<video>.en.srt`.
+
 ## Monitor channels + notify
 
 Maintain a category-grouped watchlist (`channels.json`, see
