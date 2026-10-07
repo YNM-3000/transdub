@@ -171,6 +171,27 @@ def test_ollama_backend_translates_via_transport():
     assert "1. Hi" in seen["user"] and "2. World" in seen["user"]
 
 
+def test_ollama_backend_sub_batches_large_chunks():
+    from translate.ollama_backend import OllamaBackend
+
+    import re
+
+    calls: list[int] = []
+
+    def transport(user: str) -> str:
+        # Reply with as many numbered lines as the batch asked for.
+        n = len(re.findall(r"(?m)^\d+\. line\d+$", user))
+        calls.append(n)
+        return "\n".join(f"{i + 1}. 译{i + 1}" for i in range(n))
+
+    backend = OllamaBackend(model="qwen", transport=transport, batch_size=15)
+    cues = [f"line{i}" for i in range(35)]
+    out = backend.translate_chunk(cues, "ctx")
+
+    assert len(out) == 35                 # stitched back to the full length
+    assert calls == [15, 15, 5]           # split into batches of 15, 15, 5
+
+
 def test_ollama_backend_retries_on_length_mismatch():
     from translate.ollama_backend import OllamaBackend
 

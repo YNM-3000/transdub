@@ -27,6 +27,10 @@ MAX_RETRIES = 3
 BACKOFF_BASE_S = 1.0
 CONNECT_TIMEOUT_S = 2.0
 CHAT_TIMEOUT_S = 300.0
+# Local 7–9B models reliably hold the numbered-line contract only for small
+# batches; at 30 they merge short cues and drop lines. The pipeline still chunks
+# at 30 (good for Claude's coherence) — we re-batch smaller just for Ollama.
+DEFAULT_BATCH_SIZE = 15
 
 
 def host() -> str:
@@ -100,6 +104,7 @@ class OllamaBackend:
         max_retries: int = MAX_RETRIES,
         sleep=time.sleep,
         temperature: float = 0.3,
+        batch_size: int | None = None,
     ) -> None:
         self._server = (server or host()).rstrip("/")
         self._model = model or os.environ.get("OLLAMA_MODEL")  # may resolve lazily
@@ -107,6 +112,9 @@ class OllamaBackend:
         self._max_retries = max_retries
         self._sleep = sleep
         self._temperature = temperature
+        self._batch_size = batch_size or int(
+            os.environ.get("OLLAMA_BATCH_SIZE", DEFAULT_BATCH_SIZE) or DEFAULT_BATCH_SIZE
+        )
 
     @property
     def model(self) -> str:
@@ -121,7 +129,16 @@ class OllamaBackend:
     def translate_chunk(self, cues: list[str], context: str) -> list[str]:
         if not cues:
             return []
+        # Translate in small batches the local model can keep aligned, then
+        # stitch them back into one list. If any batch fails after retries the
+        # whole chunk is reported failed, so the FallbackBackend hands the full
+        # chunk to Claude (unchanged behaviour, just fewer forced fallbacks).
+        out: list[str] = []
+        for start in range(0, len(cues), self._batch_size):
+            out.extend(self._translate_batch(cues[start : start + self._batch_size], context))
+        return out
 
+    def _translate_batch(self, cues: list[str], context: str) -> list[str]:
         numbered = "\n".join(f"{i + 1}. {line}" for i, line in enumerate(cues))
         user = (
             f"Context (for coherence only, do not translate):\n{context}\n\n"
@@ -157,7 +174,16 @@ def _chat(server: str, model: str, user: str, temperature: float, system: str) -
         ],
         "stream": False,
         "think": False,  # suppress <think> output on reasoning models (ignored otherwise)
-        "options": {"temperature": temperature, "num_predict": 4096},
+        "options": {
+            "temperature": temperature,
+            "num_predict": 4096,
+            # Override any penalties baked into the model's Modelfile. A high
+            # presence/frequency penalty (qwen3.5:9b ships 1.5) punishes the
+            # repeated "N." list markers, so the model merges many subtitle
+            # lines into one entry and the chunk comes back short.
+            "presence_penalty": 0.0,
+            "frequency_penalty": 0.0,
+        },
     }
     req = urllib.request.Request(
         f"{server}/api/chat",
