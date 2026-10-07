@@ -7,7 +7,7 @@ dependencies = [
     "anthropic>=0.40",
     "pysubs2>=1.7",
     "python-dotenv>=1.0",
-    "yt-dlp>=2025.1",
+    "yt-dlp>=2026.8.19",  # YouTube breaks older extractors ("page needs to be reloaded")
 ]
 
 [project.optional-dependencies]

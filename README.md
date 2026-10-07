@@ -226,6 +226,18 @@ Downloading real YouTube subtitles requires browser cookies (bot check) and a
 JS runtime such as `deno` (challenge solving); the pipeline handles this via
 `--cookies-from-browser` and `--remote-components ejs:npm`.
 
+**If downloads fail with `The page needs to be reloaded.`** (or a similar
+`[youtube]` extraction error), yt-dlp is out of date — YouTube changes its
+player regularly and only recent yt-dlp releases can solve the new challenge.
+Update it and retry:
+
+```bash
+uv lock --upgrade-package yt-dlp && uv sync
+```
+
+(Already-downloaded videos are reused from disk, so a re-run of an interrupted
+flow never hits this — see "Resuming an interrupted run" above.)
+
 ## Tests
 
 ```bash
