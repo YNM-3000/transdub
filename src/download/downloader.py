@@ -51,6 +51,58 @@ def normalize_url(url: str) -> str:
     return url.strip().replace("\\", "")
 
 
+_VIDEO_EXTS = (".mp4", ".mkv", ".webm", ".mov")
+_INFO_SUFFIX = ".info.json"
+
+
+def video_id(url: str) -> str | None:
+    """Extract the 11-char YouTube video id from a URL (or a bare id)."""
+    url = normalize_url(url)
+    match = re.search(r"(?:v=|youtu\.be/|/shorts/|/embed/)([0-9A-Za-z_-]{11})", url)
+    if match:
+        return match.group(1)
+    bare = re.fullmatch(r"[0-9A-Za-z_-]{11}", url)
+    return bare.group(0) if bare else None
+
+
+def find_local_download(
+    url: str, base_dir: str | Path = "downloads"
+) -> tuple[dict, Path] | None:
+    """Locate an already-downloaded video for `url` under `base_dir`.
+
+    A finished download leaves `<name>.info.json` beside the merged video.
+    Finding both lets the pipeline skip yt-dlp entirely on a re-run — faster,
+    and it sidesteps YouTube's bot challenge ("page needs to be reloaded") that
+    a fresh info extraction would otherwise trip. Returns (info, video_path), or
+    None when no complete download exists (missing either sidecar = incomplete).
+    """
+    vid = video_id(url)
+    if not vid:
+        return None
+    tag = f'"{vid}"'  # cheap pre-filter before parsing a possibly-large info.json
+    for info_path in sorted(Path(base_dir).glob(f"**/*{_INFO_SUFFIX}")):
+        stem = info_path.name[: -len(_INFO_SUFFIX)]
+        video = next(
+            (p for ext in _VIDEO_EXTS if (p := info_path.with_name(stem + ext)).is_file()),
+            None,
+        )
+        if video is None:
+            continue
+        try:
+            text = info_path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if tag not in text:
+            continue
+        try:
+            info = json.loads(text)
+        except json.JSONDecodeError:
+            continue
+        if info.get("id") == vid:
+            return info, video
+    return None
+
+
 def _default_runner(cmd: list[str]) -> "subprocess.CompletedProcess[str]":
     return subprocess.run(cmd, capture_output=True, text=True)
 
@@ -110,6 +162,22 @@ def download_one(
     default runner (tests inject a runner and bypass streaming).
     """
     url = normalize_url(url)
+    # Resume/idempotency: if this video is already on disk, reuse it and skip
+    # yt-dlp (and the YouTube round-trip that may now hit a bot challenge).
+    local = find_local_download(url, base_dir)
+    if local is not None:
+        info, video_path = local
+        log.info("download: reusing already-downloaded %s", video_path.name)
+        if on_progress is not None and runner is _default_runner:
+            on_progress(100)
+        return DownloadResult(
+            url=url,
+            ok=True,
+            video_path=video_path,
+            subtitle_path=_find_subtitle(video_path),
+            info=_video_info(info),
+        )
+
     day = day or _date.today().isoformat()
     stream = on_progress is not None and runner is _default_runner
     cmd = build_command(url, base_dir, day, fmt, cookies_browser, progress=stream)

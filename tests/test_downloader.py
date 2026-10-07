@@ -163,6 +163,67 @@ def test_download_one_success(tmp_path):
     assert res.video_path.parent.parent.name == "2026-06-04"
 
 
+def _make_local_download(folder: Path, *, vid="dQw4w9WgXcQ", title="My Video", with_video=True):
+    """Create a yt-dlp-style download on disk: <title>.info.json (+ .mp4 + .srt)."""
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / f"{title}.info.json").write_text(
+        json.dumps({"id": vid, "title": title, "channel": "Cool Channel",
+                    "webpage_url": f"https://youtu.be/{vid}", "duration": 612}),
+        encoding="utf-8",
+    )
+    if with_video:
+        (folder / f"{title}.mp4").write_bytes(b"fake-video")
+        (folder / f"{title}.en.srt").write_text("1\n00:00:00,000 --> 00:00:01,000\nhi\n")
+    return folder / f"{title}.mp4"
+
+
+def test_video_id_extracts_from_url_forms():
+    from download.downloader import video_id
+
+    assert video_id("https://www.youtube.com/watch?v=1_FGx85AEYI") == "1_FGx85AEYI"
+    assert video_id("https://youtu.be/1_FGx85AEYI") == "1_FGx85AEYI"
+    assert video_id("https://www.youtube.com/shorts/1_FGx85AEYI") == "1_FGx85AEYI"
+    assert video_id("1_FGx85AEYI") == "1_FGx85AEYI"
+    assert video_id("https://example.com/not-a-video") is None
+
+
+def test_find_local_download_matches_by_id(tmp_path):
+    from download.downloader import find_local_download
+
+    video = _make_local_download(tmp_path / "downloads" / "2026-10-07" / "Chan")
+    found = find_local_download(
+        "https://youtube.com/watch?v=dQw4w9WgXcQ", tmp_path / "downloads"
+    )
+    assert found is not None
+    info, path = found
+    assert info["id"] == "dQw4w9WgXcQ"
+    assert path == video
+
+
+def test_find_local_download_none_when_video_missing(tmp_path):
+    from download.downloader import find_local_download
+
+    # info.json present but no video file → incomplete, not reusable
+    _make_local_download(tmp_path / "downloads" / "d" / "Chan", with_video=False)
+    assert find_local_download("https://youtu.be/dQw4w9WgXcQ", tmp_path / "downloads") is None
+
+
+def test_download_one_reuses_local_without_running(tmp_path):
+    runner = FakeRunner()
+    video = _make_local_download(tmp_path / "downloads" / "2026-10-07" / "Chan")
+
+    res = download_one(
+        "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        base_dir=tmp_path / "downloads",
+        runner=runner,
+    )
+    assert res.ok
+    assert res.video_path == video
+    assert res.subtitle_path.name == "My Video.en.srt"
+    assert res.info.id == "dQw4w9WgXcQ"
+    assert runner.commands == []  # yt-dlp was never invoked (no YouTube round-trip)
+
+
 def test_download_one_nonzero_returncode_returns_error(tmp_path):
     res = download_one(
         "URL",
