@@ -63,6 +63,50 @@ def test_make_progress_non_tty_falls_back_to_log(monkeypatch):
     log.info.assert_called_once_with("%s: %d%%%s", "compose", 50, "")
 
 
+def test_make_progress_tty_shows_elapsed_and_eta(monkeypatch):
+    import io
+    import sys
+
+    class FakeTTY(io.StringIO):
+        def isatty(self):
+            return True
+
+    fake = FakeTTY()
+    monkeypatch.setattr(sys, "stderr", fake)
+    ticks = iter([0.0, 10.0, 40.0])  # t0 baseline, +10s @25%, +40s @100%
+    progress = obs.make_progress("translate", clock=lambda: next(ticks))
+
+    progress(0)    # first call sets the start time (elapsed 0)
+    progress(25)   # 10s elapsed at 25% → ETA 30s
+    assert "\rtranslate: 25% [0:10<0:30]" in fake.getvalue()
+
+    progress(100)  # completion shows elapsed only
+    assert "\rtranslate: 100% [0:40]" in fake.getvalue()
+
+
+def test_make_progress_non_tty_throttles_and_logs_elapsed_at_end(monkeypatch):
+    import io
+    import sys
+    from unittest.mock import MagicMock
+
+    class FakeFile(io.StringIO):
+        def isatty(self):
+            return False
+
+    monkeypatch.setattr(sys, "stderr", FakeFile())
+    log = MagicMock()
+    progress = obs.make_progress("dub", log, step=10)
+
+    for pct in range(0, 101):  # 101 updates, as a chatty stage would emit
+        progress(pct)
+
+    # Throttled to every 10% (0,10,…,90) plus the final 100 → 11 lines, not 101.
+    assert log.info.call_count == 11
+    # The completion line carries elapsed time in its format.
+    assert log.info.call_args_list[-1].args[0] == "%s: %d%%%s (%s)"
+    assert log.info.call_args_list[-1].args[1] == "dub"
+
+
 def test_make_progress_tty_appends_detail_and_clears(monkeypatch):
     import io
     import sys
