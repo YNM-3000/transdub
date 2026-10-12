@@ -1,16 +1,24 @@
 # Transdub
 
+**English** · [简体中文](README.zh-CN.md)
+
 > Translate and dub foreign videos into Chinese, end to end — local-first.
 
-Transdub localizes overseas (YouTube) videos for Chinese platforms through one
-pipeline: monitor → notify → download → transcribe → translate → compose → dub →
-publish → data. See `instruction.md` for the full spec.
+Found a video you wish your Chinese-speaking friends could enjoy? Transdub turns
+a foreign (YouTube) video into a share-ready Chinese version — accurate bilingual
+subtitles *and* a natural Chinese voice-over — from a single command. It handles
+the whole journey so you don't have to stitch tools together:
 
-The pipeline runs **local-first**: translation and publish metadata prefer a
-local Ollama model and fall back to Claude; captions are transcribed locally
-with Whisper when YouTube withholds them; the Chinese dub uses edge-tts, local
-Kokoro, or GPT-SoVITS voice cloning. Every backend is behind a small protocol,
-so cloud and local engines are interchangeable.
+**download → transcribe → translate → compose → dub → publish**, with optional
+channel monitoring on one end and view/like metrics on the other. See
+`instruction.md` for the full spec.
+
+It runs **local-first**, so you can do most of it on your own machine for free:
+translation and publish text prefer a local Ollama model and fall back to Claude
+only when needed; missing captions are transcribed locally with Whisper; and the
+Chinese dub can use edge-tts, local Kokoro, or GPT-SoVITS voice cloning. Every
+backend hides behind a small protocol, so local and cloud engines are drop-in
+interchangeable.
 
 > [!IMPORTANT]
 > **Intended use & your responsibility.** Transdub is a localization tool for
