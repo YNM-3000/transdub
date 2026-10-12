@@ -17,13 +17,13 @@ from .state import SeenStore
 from .youtube_api import YouTubeClient
 
 DEFAULT_CONFIG = "channels.json"
-DEFAULT_DB = "recreator.db"
+DEFAULT_DB = "transdub.db"
 
 
 def main(argv: list[str] | None = None) -> int:
     load_dotenv()
     parser = argparse.ArgumentParser(
-        prog="recreator-monitor",
+        prog="transdub-monitor",
         description="Scan watched YouTube channels for new/trending videos and email a digest.",
     )
     parser.add_argument("--config", default=DEFAULT_CONFIG, help=f"watchlist JSON (default: {DEFAULT_CONFIG})")

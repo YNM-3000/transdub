@@ -16,7 +16,7 @@ from .sanitize import strip_translator_notes
 from .styler import build_bilingual
 from .subtitle import chunk_cues, load_cues
 
-log = logging.getLogger("recreator.translate")
+log = logging.getLogger("transdub.translate")
 
 ProgressFn = Callable[[int], None]
 

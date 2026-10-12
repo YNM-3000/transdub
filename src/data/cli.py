@@ -9,7 +9,7 @@ from .ingest import find_info_jsons, source_record_from_info_json
 from .models import UploadRecord
 from .store import DataStore
 
-DEFAULT_DB = "recreator.db"
+DEFAULT_DB = "transdub.db"
 
 
 def _fmt(n: int | None) -> str:
@@ -67,7 +67,7 @@ def _cmd_show(store: DataStore, args) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="recreator-data",
+        prog="transdub-data",
         description="Store and compare source vs. re-upload video metrics.",
     )
     parser.add_argument("--db", default=DEFAULT_DB, help=f"SQLite path (default: {DEFAULT_DB})")

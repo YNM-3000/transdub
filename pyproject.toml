@@ -1,7 +1,7 @@
 [project]
-name = "recreator"
+name = "transdub"
 version = "0.1.0"
-description = "Repurpose overseas videos to Chinese platforms — translator validation slice"
+description = "Localize foreign videos for Chinese platforms: download → transcribe → translate → compose → dub → publish, local-first."
 requires-python = ">=3.13"
 dependencies = [
     "anthropic>=0.40",
@@ -19,14 +19,14 @@ dub = ["edge-tts>=7.0"]
 dub-kokoro = ["kokoro-onnx>=0.4", "misaki[zh]>=0.9", "numpy>=1.26"]
 
 [project.scripts]
-recreator-translate = "translate.cli:main"
-recreator-download = "download.cli:main"
-recreator-compose = "compose.cli:main"
-recreator-dub = "dub.cli:main"
-recreator-publish = "publish.cli:main"
-recreator-data = "data.cli:main"
-recreator-monitor = "monitor.cli:main"
-recreator-run = "orchestrate.cli:main"
+transdub-translate = "translate.cli:main"
+transdub-download = "download.cli:main"
+transdub-compose = "compose.cli:main"
+transdub-dub = "dub.cli:main"
+transdub-publish = "publish.cli:main"
+transdub-data = "data.cli:main"
+transdub-monitor = "monitor.cli:main"
+transdub-run = "orchestrate.cli:main"
 
 [dependency-groups]
 dev = [

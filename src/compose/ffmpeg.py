@@ -20,7 +20,7 @@ from typing import Callable
 
 from .models import AAC, BURN, COPY, SOFT, ComposeResult
 
-log = logging.getLogger("recreator.compose")
+log = logging.getLogger("transdub.compose")
 
 FFMPEG = "ffmpeg"
 FFPROBE = "ffprobe"
@@ -158,7 +158,7 @@ def build_soft_command(
 
 
 def _burn(video, subtitle, out, crf, preset, audio, preview_seconds, on_progress, runner) -> ComposeResult:
-    tmpdir = Path(tempfile.mkdtemp(prefix="recreator-compose-"))
+    tmpdir = Path(tempfile.mkdtemp(prefix="transdub-compose-"))
     try:
         shutil.copyfile(subtitle, tmpdir / _SAFE_SUB_NAME)
         if on_progress is not None:

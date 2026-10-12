@@ -14,7 +14,7 @@ from .backend import SAMPLE_RATE, VoiceBackend
 from .models import VoiceCue
 from .timeline import plan_timeline
 
-log = logging.getLogger("recreator.dub")
+log = logging.getLogger("transdub.dub")
 
 Runner = Callable[[list[str]], "subprocess.CompletedProcess[str]"]
 ProgressFn = Callable[[int], None]

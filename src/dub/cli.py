@@ -53,7 +53,7 @@ def _register_voice(media: str, name: str | None) -> int:
     print(f"✓ registered '{wav.stem}' ({lang})")
     print(f"    clip: {wav}")
     print(f"    text: {transcript}")
-    print(f'    use:  recreator-dub … --voice "{wav.stem}"')
+    print(f'    use:  transdub-dub … --voice "{wav.stem}"')
     return 0
 
 
@@ -73,7 +73,7 @@ def _write_samples(out_dir: str, text: str) -> int:
 def main(argv: list[str] | None = None) -> int:
     load_dotenv()
     parser = argparse.ArgumentParser(
-        prog="recreator-dub",
+        prog="transdub-dub",
         description="Replace a video's audio with a Chinese TTS voice, driven by "
                     "the bilingual subtitle. Writes <video>.dubbed.<ext> alongside it.",
     )

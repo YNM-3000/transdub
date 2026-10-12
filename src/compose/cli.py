@@ -22,7 +22,7 @@ _log = obs.logger("compose")
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="recreator-compose",
+        prog="transdub-compose",
         description="Burn (or soft-mux) bilingual subtitles into a final video.",
     )
     parser.add_argument("video", help="source video file")

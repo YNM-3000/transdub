@@ -26,11 +26,11 @@ from urllib.parse import urlparse
 
 from .gptsovits_backend import DEFAULT_URL, reachable
 
-log = logging.getLogger("recreator.dub")
+log = logging.getLogger("transdub.dub")
 
 DEFAULT_HOME = "~/Development/GPT-SoVITS"
 READY_TIMEOUT_S = 180.0
-_LOG_FILE = os.path.join(tempfile.gettempdir(), "recreator-gptsovits.log")
+_LOG_FILE = os.path.join(tempfile.gettempdir(), "transdub-gptsovits.log")
 
 
 def _home() -> Path:

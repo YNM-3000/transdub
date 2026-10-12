@@ -19,7 +19,7 @@ from pathlib import Path
 
 from .backend import SAMPLE_RATE
 
-log = logging.getLogger("recreator.dub")
+log = logging.getLogger("transdub.dub")
 
 DEFAULT_URL = "http://127.0.0.1:9880"
 TIMEOUT_S = 300.0
@@ -119,7 +119,7 @@ def _post_tts(url: str, body: dict) -> bytes:
 
 def _to_wav(audio: bytes, out: Path) -> None:
     """Normalize the server's wav bytes to 24 kHz mono for the dub assembly."""
-    fd, tmp = tempfile.mkstemp(prefix="recreator-sovits-", suffix=".wav")
+    fd, tmp = tempfile.mkstemp(prefix="transdub-sovits-", suffix=".wav")
     os.close(fd)
     try:
         Path(tmp).write_bytes(audio)

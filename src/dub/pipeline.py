@@ -12,7 +12,7 @@ from .backend import VoiceBackend
 from .models import DubResult
 from .segment import merge_into_sentences
 
-log = logging.getLogger("recreator.dub")
+log = logging.getLogger("transdub.dub")
 
 
 def dub_video(
@@ -54,7 +54,7 @@ def dub_video(
 
     log.info("dub: synthesizing %d lines with %s", len(cues), voice or "voice backend")
     try:
-        with tempfile.TemporaryDirectory(prefix="recreator-dub-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="transdub-dub-") as tmp:
             track = build_dub_track(
                 cues, backend, Path(tmp) / "dub.wav",
                 workdir=Path(tmp), on_progress=on_progress,

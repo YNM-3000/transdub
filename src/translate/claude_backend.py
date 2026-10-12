@@ -60,7 +60,7 @@ class ClaudeBackend:
         sleep=time.sleep,
     ) -> None:
         self._client = client  # injected for tests; lazily created otherwise
-        self._model = model or os.environ.get("RECREATOR_MODEL", DEFAULT_MODEL)
+        self._model = model or os.environ.get("TRANSDUB_MODEL", DEFAULT_MODEL)
         self._max_retries = max_retries
         self._sleep = sleep
 

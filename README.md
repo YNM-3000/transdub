@@ -1,14 +1,36 @@
-# Recreator
+# Transdub
 
-System to repurpose overseas (YouTube) videos for Chinese platforms:
-monitor → notify → download → transcribe → translate → compose → dub → publish →
-data. See `instruction.md` for the full spec.
+> Translate and dub foreign videos into Chinese, end to end — local-first.
+
+Transdub localizes overseas (YouTube) videos for Chinese platforms through one
+pipeline: monitor → notify → download → transcribe → translate → compose → dub →
+publish → data. See `instruction.md` for the full spec.
 
 The pipeline runs **local-first**: translation and publish metadata prefer a
 local Ollama model and fall back to Claude; captions are transcribed locally
-with Whisper when YouTube withholds them; the Chinese dub uses edge-tts (or
-local Kokoro). Every backend is behind a small protocol, so cloud and local
-engines are interchangeable.
+with Whisper when YouTube withholds them; the Chinese dub uses edge-tts, local
+Kokoro, or GPT-SoVITS voice cloning. Every backend is behind a small protocol,
+so cloud and local engines are interchangeable.
+
+> [!IMPORTANT]
+> **Intended use & your responsibility.** Transdub is a localization tool for
+> content you have the right to use — your own videos, or others' videos **with
+> the creator's permission**. Downloading from YouTube may violate its Terms of
+> Service, and re-uploading someone else's work without a licence infringes
+> copyright, even with attribution. The project ships a permission-request
+> workflow for exactly this reason: **ask first.** You are solely responsible for
+> securing the rights to anything you process and publish, and for complying with
+> the terms of every platform and model you use. The authors provide this
+> software as-is and accept no liability for how it is used (see `LICENSE`).
+
+## Prerequisites
+
+- **[uv](https://docs.astral.sh/uv/)** — Python 3.13+ environment/runner
+- **ffmpeg** — audio/video processing (every media stage)
+- **[deno](https://deno.com/)** — YouTube JS-challenge solving for downloads
+- *Optional:* **[Ollama](https://ollama.com)** (local translation/metadata),
+  a local **GPT-SoVITS** server (voice cloning), and an **Anthropic API key**
+  (cloud fallback). Each is optional and degrades gracefully.
 
 ## Setup
 
@@ -52,7 +74,7 @@ the best publish metadata.
 ## Full pipeline (one flow, with retries)
 
 ```bash
-uv run recreator-run "https://www.youtube.com/watch?v=VIDEO_ID"
+uv run transdub-run "https://www.youtube.com/watch?v=VIDEO_ID"
 ```
 
 Runs every stage end to end — **download → (transcribe if no captions) →
@@ -76,7 +98,7 @@ Useful flags:
 - `--backend auto|ollama|claude` translation engine (default `auto` =
   local-first with Claude fallback; publish metadata mirrors this)
 - `--stop-after translate` halt at the human subtitle-review gate (then run
-  `recreator-compose` / `recreator-dub` / `recreator-publish` after review)
+  `transdub-compose` / `transdub-dub` / `transdub-publish` after review)
 - `--stop-after compose` stop before publishing
 - `--no-publish` / `--no-data` skip those stages
 - `--attempts N` / `--retry-delay S` tune the retry policy
@@ -99,15 +121,15 @@ continues from where it stopped:
 | dub | `<video>.final.dubbed.mp4` |
 
 ```bash
-uv run recreator-run "https://www.youtube.com/watch?v=VIDEO_ID"   # picks up where it left off
+uv run transdub-run "https://www.youtube.com/watch?v=VIDEO_ID"   # picks up where it left off
 ```
 
 Runs most often stop in the **dub** stage. If the default GPT-SoVITS engine runs
 out of memory, continue with a lighter path:
 
 ```bash
-uv run recreator-run "…VIDEO…" --dub-engine edge     # cloud edge-tts, no local model
-uv run recreator-run "…VIDEO…" --stop-after compose  # finish the subtitled video, dub later
+uv run transdub-run "…VIDEO…" --dub-engine edge     # cloud edge-tts, no local model
+uv run transdub-run "…VIDEO…" --stop-after compose  # finish the subtitled video, dub later
 ```
 
 Once a subtitle exists (downloaded or Whisper-made), you can also resume by hand
@@ -122,9 +144,9 @@ Maintain a category-grouped watchlist (`channels.json`, see
 digest. Needs `YOUTUBE_API_KEY` and `SMTP_*` in `.env`.
 
 ```bash
-uv run recreator-monitor --config channels.json            # scan + email
-uv run recreator-monitor --config channels.json --dry-run  # scan + print only
-uv run recreator-run --monitor --schedule 3600             # scan + email hourly
+uv run transdub-monitor --config channels.json            # scan + email
+uv run transdub-monitor --config channels.json --dry-run  # scan + print only
+uv run transdub-run --monitor --schedule 3600             # scan + email hourly
 ```
 
 ## Individual stages
@@ -133,28 +155,28 @@ Each stage is also a standalone command (run one, review, run the next):
 
 ```bash
 # Download video + subtitles (+ info.json + thumbnail)
-uv run recreator-download "https://www.youtube.com/watch?v=VIDEO_ID"
+uv run transdub-download "https://www.youtube.com/watch?v=VIDEO_ID"
 
 # Translate a subtitle → bilingual ASS (EN + 中文). --backend auto|ollama|claude
-uv run recreator-translate samples/demo.srt -o out/demo.bilingual.ass
+uv run transdub-translate samples/demo.srt -o out/demo.bilingual.ass
 
 # Compose: burn bilingual subs into the video (--mode soft = MKV track;
 # --preview N = fast N-second check before a full encode)
-uv run recreator-compose video.mp4 video.bilingual.ass -o out/final.mp4
+uv run transdub-compose video.mp4 video.bilingual.ass -o out/final.mp4
 
 # Dub: replace audio with a Chinese voice, driven by the bilingual subtitle,
 # writing <video>.dubbed.mp4 alongside the subtitled version
-uv run recreator-dub out/final.mp4 video.bilingual.ass
-uv run recreator-dub --list-voices          # list Chinese voices + where to preview
-uv run recreator-dub --samples ./samples-out # synth one clip per voice to listen
+uv run transdub-dub out/final.mp4 video.bilingual.ass
+uv run transdub-dub --list-voices          # list Chinese voices + where to preview
+uv run transdub-dub --samples ./samples-out # synth one clip per voice to listen
 
 # Publish: Chinese title/description/tags + a cover, into output/<date>/<channel>/
-uv run recreator-publish out/final.mp4 -s video.bilingual.ass
+uv run transdub-publish out/final.mp4 -s video.bilingual.ass
 
 # Data: record source vs. re-upload metrics and compare
-uv run recreator-data record-source downloads
-uv run recreator-data record-upload --source-id VIDEO_ID --platform bilibili --views 8200 --likes 430
-uv run recreator-data show VIDEO_ID
+uv run transdub-data record-source downloads
+uv run transdub-data record-upload --source-id VIDEO_ID --platform bilibili --views 8200 --likes 430
+uv run transdub-data show VIDEO_ID
 ```
 
 ## How captions, translation, and dubbing work
@@ -164,7 +186,7 @@ uv run recreator-data show VIDEO_ID
   **Whisper** (`--extra asr`) into an English SRT that feeds translation — so
   caption-less videos still work. Auto-generated captions that *do* download
   use a "rolling" format (each cue repeats the previous line plus one new
-  line); these are de-rolled before translation (`recreator-translate
+  line); these are de-rolled before translation (`transdub-translate
   --no-clean` to disable).
 - **Translation** uses a numbered-line text protocol (not JSON — robust to
   punctuation). `auto` runs a local Ollama model per chunk and falls back to
@@ -196,27 +218,27 @@ short reference, auto-transcribes it with Whisper, and stores it under
 `models/refs/` (needs `--extra asr`):
 
 ```bash
-uv run recreator-dub --register "clip.mp4" [--name MyVoice]
-uv run recreator-run "…VIDEO…" --voice MyVoice     # reuse by name
+uv run transdub-dub --register "clip.mp4" [--name MyVoice]
+uv run transdub-run "…VIDEO…" --voice MyVoice     # reuse by name
 ```
 
 Or hand-pick a reference inline with `--voice /path/clip.wav` (a sibling
 `clip.txt` supplies its transcript, `clip.lang` its language).
 
-When GPT-SoVITS is used inside `recreator-run`, the local Ollama model is
+When GPT-SoVITS is used inside `transdub-run`, the local Ollama model is
 unloaded first to free memory before the (heavier) dub.
 
 GPT-SoVITS is heavy PyTorch, so it runs as its own local server (works on
-Apple Silicon) and recreator talks to it over HTTP:
+Apple Silicon) and transdub talks to it over HTTP:
 
 ```bash
 # one-time: set up GPT-SoVITS and download its pretrained models, then:
 python api_v2.py                      # serves 127.0.0.1:9880 (see GPT-SoVITS docs)
 
-# point recreator at it and dub:
+# point transdub at it and dub:
 export DUB_ENGINE=gpt-sovits          # or:  --dub-engine gpt-sovits
 export GPT_SOVITS_URL=http://127.0.0.1:9880   # default
-uv run recreator-run "https://www.youtube.com/watch?v=VIDEO_ID"
+uv run transdub-run "https://www.youtube.com/watch?v=VIDEO_ID"
 ```
 
 If the server isn't running, the dub stage fails per-video (non-fatal) with a
@@ -266,3 +288,13 @@ behind a protocol, so the flow can later move onto a workflow framework.
 - `orchestrate/` — wires the stages into one flow (`flow.run_full`) with a
   retry policy, an interval scheduler, and the engine summary; the seam a
   workflow framework would later replace
+
+## Contributing
+
+Issues and PRs welcome — see `CONTRIBUTING.md`. Tests need no network, API keys,
+or models: `uv run pytest`.
+
+## License
+
+[MIT](LICENSE). Note the **Intended use & your responsibility** section above —
+the licence covers the software, not the rights to any video you process.

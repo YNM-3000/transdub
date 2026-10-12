@@ -8,18 +8,18 @@ import logging
 import obs
 
 
-def test_configure_sets_recreator_logger_to_stderr():
+def test_configure_sets_transdub_logger_to_stderr():
     obs.configure(verbose=False)
-    root = logging.getLogger("recreator")
+    root = logging.getLogger("transdub")
     assert root.level == logging.INFO
     assert root.handlers and not root.propagate
 
     obs.configure(verbose=True)
-    assert logging.getLogger("recreator").level == logging.DEBUG
+    assert logging.getLogger("transdub").level == logging.DEBUG
 
 
 def test_logger_is_namespaced():
-    assert obs.logger("compose").name == "recreator.compose"
+    assert obs.logger("compose").name == "transdub.compose"
 
 
 def test_add_verbose_arg():

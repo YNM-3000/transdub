@@ -8,7 +8,7 @@ from pathlib import Path
 from .backend import ProgressFn, Transcriber
 from .srt import write_srt
 
-log = logging.getLogger("recreator.transcribe")
+log = logging.getLogger("transdub.transcribe")
 
 
 def ensure_subtitle(

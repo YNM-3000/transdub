@@ -24,7 +24,7 @@ def _default_out(in_path: str) -> str:
 def main(argv: list[str] | None = None) -> int:
     load_dotenv()
     parser = argparse.ArgumentParser(
-        prog="recreator-translate",
+        prog="transdub-translate",
         description="Translate a subtitle file into a bilingual ASS (EN + 中文).",
     )
     parser.add_argument("input", help="source subtitle file (.srt/.vtt/.ass)")

@@ -77,7 +77,7 @@ def test_get_voice_backend_gpt_sovits_engine():
 def test_register_reference_writes_clip_text_and_lang(tmp_path):
     from dub.reference import register_reference
 
-    media = tmp_path / "Nanami Kento.mp4"
+    media = tmp_path / "Test Speaker.mp4"
     media.write_bytes(b"x")
     refs = tmp_path / "refs"
 
@@ -94,10 +94,10 @@ def test_register_reference_writes_clip_text_and_lang(tmp_path):
     wav, text, lang = register_reference(
         media, FakeTranscriber(), refs_dir=refs, runner=fake_ffmpeg
     )
-    assert wav == refs / "Nanami Kento.wav" and wav.is_file()
+    assert wav == refs / "Test Speaker.wav" and wav.is_file()
     assert text == "仕事だ。 以上。" and lang == "ja"
-    assert (refs / "Nanami Kento.txt").read_text(encoding="utf-8") == "仕事だ。 以上。"
-    assert (refs / "Nanami Kento.lang").read_text(encoding="utf-8") == "ja"
+    assert (refs / "Test Speaker.txt").read_text(encoding="utf-8") == "仕事だ。 以上。"
+    assert (refs / "Test Speaker.lang").read_text(encoding="utf-8") == "ja"
 
 
 def test_set_reference_from_path_resolves_name_and_lang(tmp_path, monkeypatch):
@@ -105,16 +105,16 @@ def test_set_reference_from_path_resolves_name_and_lang(tmp_path, monkeypatch):
 
     refs = tmp_path / "models" / "refs"
     refs.mkdir(parents=True)
-    (refs / "Nanami.wav").write_bytes(b"x")
-    (refs / "Nanami.txt").write_text("仕事だ。", encoding="utf-8")
-    (refs / "Nanami.lang").write_text("ja", encoding="utf-8")
+    (refs / "Speaker.wav").write_bytes(b"x")
+    (refs / "Speaker.txt").write_text("仕事だ。", encoding="utf-8")
+    (refs / "Speaker.lang").write_text("ja", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
 
     b = GPTSoVITSBackend()
-    b.set_reference_from_path("Nanami")  # bare name → models/refs/Nanami.wav
-    assert b.ref_audio.endswith("Nanami.wav")
+    b.set_reference_from_path("Speaker")  # bare name → models/refs/Speaker.wav
+    assert b.ref_audio.endswith("Speaker.wav")
     assert b.ref_text == "仕事だ。" and b.ref_lang == "ja"
-    assert b.voice_label == "Nanami"
+    assert b.voice_label == "Speaker"
 
 
 def test_voice_server_uses_running_server_without_starting(monkeypatch):

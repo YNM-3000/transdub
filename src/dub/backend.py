@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 from typing import Protocol
 
-log = logging.getLogger("recreator.dub")
+log = logging.getLogger("transdub.dub")
 
 # Synthesized clips are normalized to this format for seamless concatenation.
 SAMPLE_RATE = 24_000

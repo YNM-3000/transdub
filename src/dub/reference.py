@@ -15,7 +15,7 @@ from pathlib import Path
 
 from .models import VoiceCue
 
-log = logging.getLogger("recreator.dub")
+log = logging.getLogger("transdub.dub")
 
 DEFAULT_REFS_DIR = "models/refs"
 REF_SAMPLE_RATE = 32_000

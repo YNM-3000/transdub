@@ -16,7 +16,7 @@ from pathlib import Path
 
 from .backend import SAMPLE_RATE
 
-log = logging.getLogger("recreator.dub")
+log = logging.getLogger("transdub.dub")
 
 DEFAULT_VOICE = "zh-CN-XiaoxiaoNeural"
 MAX_RETRIES = 3
@@ -37,7 +37,7 @@ class EdgeBackend:
     def synthesize(self, text: str, out_path: str | Path) -> None:
         import edge_tts  # lazy
 
-        fd, mp3 = tempfile.mkstemp(prefix="recreator-dub-", suffix=".mp3")
+        fd, mp3 = tempfile.mkstemp(prefix="transdub-dub-", suffix=".mp3")
         os.close(fd)  # edge-tts writes the path itself
 
         async def _run() -> None:

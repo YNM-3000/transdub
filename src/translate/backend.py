@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from typing import Protocol, runtime_checkable
 
-log = logging.getLogger("recreator.translate")
+log = logging.getLogger("transdub.translate")
 
 
 @runtime_checkable

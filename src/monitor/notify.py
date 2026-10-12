@@ -64,7 +64,7 @@ def _alert_block(alert: Alert) -> str:
 def build_digest(alerts: list[Alert]) -> tuple[str, str]:
     new = sum(1 for a in alerts if a.reason == NEW)
     trending = len(alerts) - new
-    subject = f"[Recreator] {len(alerts)} 条线索（新视频 {new} / 爆款 {trending}）"
+    subject = f"[Transdub] {len(alerts)} 条线索（新视频 {new} / 爆款 {trending}）"
     body = "\n\n".join(_alert_block(a) for a in alerts)
     return subject, body
 

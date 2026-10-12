@@ -11,7 +11,7 @@ from typing import Protocol, runtime_checkable
 
 from .models import PublishMetadata
 
-log = logging.getLogger("recreator.publish")
+log = logging.getLogger("transdub.publish")
 
 
 @runtime_checkable

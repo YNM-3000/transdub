@@ -32,7 +32,7 @@ from .models import PipelineResult
 from .pipeline import translate_download
 from .retry import RetryPolicy, retry
 
-log = logging.getLogger("recreator.flow")
+log = logging.getLogger("transdub.flow")
 
 # Terminal statuses.
 COMPLETED = "completed"

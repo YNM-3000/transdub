@@ -18,7 +18,7 @@ import urllib.request
 from .backend import LengthMismatchError
 from .claude_backend import SYSTEM_PROMPT, _parse_numbered
 
-log = logging.getLogger("recreator.translate")
+log = logging.getLogger("transdub.translate")
 
 DEFAULT_HOST = "http://localhost:11434"
 # Models good at Chinese, best first — used to auto-pick when OLLAMA_MODEL is unset.

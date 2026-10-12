@@ -13,7 +13,7 @@ import time
 from .claude_backend import MAX_CONTENT_CHARS, SYSTEM_PROMPT, _parse_metadata
 from .models import PublishMetadata
 
-log = logging.getLogger("recreator.publish")
+log = logging.getLogger("transdub.publish")
 
 MAX_RETRIES = 3
 BACKOFF_BASE_S = 1.0

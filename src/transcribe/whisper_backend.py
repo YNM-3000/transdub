@@ -17,7 +17,7 @@ from pathlib import Path
 from .backend import ProgressFn
 from .models import Segment
 
-log = logging.getLogger("recreator.transcribe")
+log = logging.getLogger("transdub.transcribe")
 
 DEFAULT_MODEL = "small"
 SAMPLE_RATE = 16_000
@@ -86,7 +86,7 @@ class WhisperBackend:
 
 def _extract_audio(media_path: Path) -> Path:
     """Extract mono 16 kHz WAV to a temp file; caller deletes it."""
-    fd, tmp = tempfile.mkstemp(prefix="recreator-asr-", suffix=".wav")
+    fd, tmp = tempfile.mkstemp(prefix="transdub-asr-", suffix=".wav")
     os.close(fd)  # ffmpeg -y writes the path itself
     cmd = [
         "ffmpeg", "-y", "-i", str(media_path),

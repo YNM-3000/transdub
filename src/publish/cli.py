@@ -24,7 +24,7 @@ from .source import (
 def main(argv: list[str] | None = None) -> int:
     load_dotenv()
     parser = argparse.ArgumentParser(
-        prog="recreator-publish",
+        prog="transdub-publish",
         description="Generate Chinese title/description/tags + a cover for upload.",
     )
     parser.add_argument("video", help="the (final) video file")

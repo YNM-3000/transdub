@@ -20,7 +20,7 @@ from typing import Callable
 
 from .models import DownloadResult, VideoInfo
 
-log = logging.getLogger("recreator.download")
+log = logging.getLogger("transdub.download")
 
 YTDLP = "yt-dlp"
 # Prefer <=1080p; merge to mp4. Falls back gracefully if the exact combo is

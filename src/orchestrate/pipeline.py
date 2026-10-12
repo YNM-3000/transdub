@@ -26,7 +26,7 @@ from .models import (
     PipelineResult,
 )
 
-log = logging.getLogger("recreator.translate")
+log = logging.getLogger("transdub.translate")
 
 
 def translate_download(

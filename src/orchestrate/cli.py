@@ -129,13 +129,13 @@ def _run_pipeline(args) -> int:
 def main(argv: list[str] | None = None) -> int:
     load_dotenv()
     parser = argparse.ArgumentParser(
-        prog="recreator-run",
-        description="Run the recreator pipeline end to end, or a monitor scan; optionally scheduled.",
+        prog="transdub-run",
+        description="Run the transdub pipeline end to end, or a monitor scan; optionally scheduled.",
     )
     parser.add_argument("urls", nargs="*", help="video URLs to process")
     parser.add_argument("--monitor", action="store_true", help="run a channel monitor scan instead")
     parser.add_argument("--config", default="channels.json", help="monitor watchlist (with --monitor)")
-    parser.add_argument("--db", default="recreator.db", help="state/metrics SQLite path")
+    parser.add_argument("--db", default="transdub.db", help="state/metrics SQLite path")
     parser.add_argument("--output-dir", default="output")
     parser.add_argument(
         "--backend", default="auto",

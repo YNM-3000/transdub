@@ -13,7 +13,7 @@ from .downloader import DEFAULT_FORMAT, download_many
 def main(argv: list[str] | None = None) -> int:
     load_dotenv()
     parser = argparse.ArgumentParser(
-        prog="recreator-download",
+        prog="transdub-download",
         description="Download YouTube videos + subtitles into downloads/<date>/<channel>/.",
     )
     parser.add_argument("urls", nargs="+", help="one or more video URLs")

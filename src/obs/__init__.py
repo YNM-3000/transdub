@@ -1,6 +1,6 @@
 """Tiny observability helper: configure terminal logging for the CLIs.
 
-Stages log under the ``recreator.*`` namespace via stdlib logging; the CLIs
+Stages log under the ``transdub.*`` namespace via stdlib logging; the CLIs
 call ``configure()`` to route those to stderr (so stdout result lines stay
 clean). INFO shows stage notices + percentages; ``--verbose`` adds DEBUG.
 """
@@ -12,7 +12,7 @@ import logging
 import sys
 import time
 
-ROOT = "recreator"
+ROOT = "transdub"
 
 # Non-TTY (piped/background) progress is logged one line at a time; only emit
 # every Nth percent so a long stage doesn't spew hundreds of near-identical
