@@ -99,6 +99,11 @@ engines (local vs cloud):
     publish:    local · ollama:qwen3.5:9b
 ```
 
+The same summary — plus each stage's status, the dub voice, and any errors — is
+saved next to the output as **`<video>.final.run.json`** (a run manifest),
+including for failed runs, so you can check which engine produced each phase when
+something looks off later.
+
 Useful flags:
 
 - `--no-dub` skip the Chinese voice dub (on by default)

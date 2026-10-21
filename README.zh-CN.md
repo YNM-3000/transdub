@@ -90,6 +90,10 @@ engines (local vs cloud):
     publish:    local · ollama:qwen3.5:9b
 ```
 
+同样的汇总——外加每个环节的状态、配音音色以及任何错误——会以
+**`<video>.final.run.json`**（运行清单）的形式保存在产物旁边，失败的任务也会写入，
+方便事后排查某个环节到底用了哪个引擎。
+
 常用参数：
 
 - `--no-dub` 跳过中文配音（默认开启）

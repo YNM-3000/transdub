@@ -18,6 +18,7 @@ from transcribe.backend import get_transcriber
 from translate.backend import get_backend
 
 from .flow import AWAITING_REVIEW, COMPLETED, run_full
+from .manifest import write_run_manifest
 from .retry import RetryPolicy
 from .scheduler import run_periodically
 
@@ -117,6 +118,9 @@ def _run_pipeline(args) -> int:
                 download_kwargs=download_kwargs,
             )
             _print_flow(result)
+            manifest = write_run_manifest(result, args.output_dir)
+            if manifest is not None:
+                print(f"    run info: {manifest}")
             failures += 0 if result.ok else 1
     finally:
         if store is not None:
