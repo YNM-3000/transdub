@@ -335,12 +335,32 @@ def test_synthesize_all_falls_back_to_silence_on_failure(tmp_path):
                 raise RuntimeError("No audio was received")
             Path(out).write_text(text)
 
-    _synthesize_all(cues, clips, FlakyBackend(), None)
+    failures = _synthesize_all(cues, clips, FlakyBackend(), None)
 
+    assert failures == 1  # one cue fell back to silence
     assert clips[0].read_text() == "line0"  # good cues synthesized
     assert clips[2].read_text() == "line2"
     with wave.open(str(clips[1]), "rb") as w:  # bad cue → valid silence wav
         assert w.getframerate() == 24_000 and w.getnframes() > 0
+
+
+def test_build_dub_track_fails_when_most_cues_fail(tmp_path):
+    import pytest
+
+    from dub.audio import build_dub_track
+
+    # Every cue fails synthesis (e.g. TTS server down / edge-tts 403) — the dub
+    # must raise instead of emitting a near-silent track.
+    cues = [VoiceCue(i, i + 1, f"line{i}") for i in range(4)]
+
+    class DeadBackend:
+        max_workers = 1
+
+        def synthesize(self, text, out):
+            raise RuntimeError("server unreachable")
+
+    with pytest.raises(RuntimeError, match="mostly silent"):
+        build_dub_track(cues, DeadBackend(), tmp_path / "out.wav", workdir=tmp_path)
 
 
 def test_scale_remaps_progress_band():

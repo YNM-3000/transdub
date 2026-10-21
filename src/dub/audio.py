@@ -19,6 +19,10 @@ log = logging.getLogger("transdub.dub")
 Runner = Callable[[list[str]], "subprocess.CompletedProcess[str]"]
 ProgressFn = Callable[[int], None]
 
+# If more than this fraction of cues fail synthesis (→ silence), the whole dub
+# is treated as failed rather than emitting a near-silent track.
+MAX_SILENCE_FRACTION = 0.5
+
 
 def _run(cmd: list[str]) -> "subprocess.CompletedProcess[str]":
     return subprocess.run(cmd, capture_output=True, text=True)
@@ -86,7 +90,16 @@ def build_dub_track(
     """
     total = len(cues)
     clips = [workdir / f"clip{i:04d}.wav" for i in range(total)]
-    _synthesize_all(cues, clips, backend, _scale(on_progress, 0, 80))
+    failures = _synthesize_all(cues, clips, backend, _scale(on_progress, 0, 80))
+
+    # A few failed cues become harmless silence, but if most of them failed the
+    # "dub" is effectively a silent track — fail loudly instead of shipping it
+    # (e.g. TTS server down, or edge-tts returning 403 on a stale version).
+    if total and failures / total > MAX_SILENCE_FRACTION:
+        raise RuntimeError(
+            f"dub synthesis failed for {failures}/{total} cues — the voice track "
+            f"would be mostly silent (check the TTS backend/server). See warnings above."
+        )
 
     durations = [probe_duration(c, runner) for c in clips]
     pieces = plan_timeline(cues, durations)
@@ -116,46 +129,54 @@ def _scale(on_progress: ProgressFn | None, lo: int, hi: int) -> ProgressFn | Non
     return lambda pct: on_progress(lo + int(pct * span / 100))
 
 
-def _synthesize_all(cues, clips, backend, on_progress) -> None:
+def _synthesize_all(cues, clips, backend, on_progress) -> int:
     """Synthesize every cue, concurrently when the backend allows it.
 
     Network-bound backends (edge-tts) set `max_workers > 1` to hide per-request
     latency; local backends (Kokoro) default to 1. Ordering is by clip path, so
-    concurrency doesn't affect the timeline.
+    concurrency doesn't affect the timeline. Returns the number of cues that
+    failed and were replaced with silence, so the caller can reject a run where
+    synthesis collapsed wholesale.
     """
     total = len(cues)
     workers = max(1, int(getattr(backend, "max_workers", 1)))
 
-    def synth_one(i: int) -> None:
+    def synth_one(i: int) -> bool:
         # A single cue that keeps failing (e.g. edge-tts "no audio") becomes a
-        # short silence rather than sinking the whole dub.
+        # short silence rather than sinking the whole dub. Returns True on failure.
         try:
             backend.synthesize(cues[i].text, clips[i])
+            return False
         except Exception as err:
             log.warning("dub: cue %d failed (%s); using silence", i + 1, err)
             _write_silence_wav(clips[i], 0.4)
+            return True
 
     if workers == 1:
+        failures = 0
         for i in range(total):
-            synth_one(i)
+            failures += synth_one(i)
             if on_progress is not None:
                 on_progress(min(99, int((i + 1) * 100 / total)))
-        return
+        return failures
 
     done = 0
+    failures = 0
     lock = threading.Lock()
 
     def synth(i: int) -> None:
-        nonlocal done
-        synth_one(i)
+        nonlocal done, failures
+        failed = synth_one(i)
         with lock:
             done += 1
+            failures += failed
             if on_progress is not None:
                 on_progress(min(99, int(done * 100 / total)))
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         for _ in pool.map(synth, range(total)):
             pass
+    return failures
 
 
 def _write_silence_wav(path: Path, seconds: float) -> None:
