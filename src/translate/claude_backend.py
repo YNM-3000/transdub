@@ -19,6 +19,11 @@ from .backend import LengthMismatchError
 DEFAULT_MODEL = "claude-sonnet-4-6"
 MAX_RETRIES = 3
 BACKOFF_BASE_S = 2.0
+# A run of this many identical consecutive lines means the model repeated one
+# translation to hit the line count instead of translating each fragment — which
+# makes the dub speak the same sentence several times. Reject so it retries/falls
+# back. 3+ identical substantial lines in a row never occurs in real subtitles.
+_MAX_DUPLICATE_RUN = 3
 
 SYSTEM_PROMPT = """\
 You are a professional subtitle translator for Chinese video platforms.
@@ -158,4 +163,12 @@ def _parse_numbered(text: str, expected: int) -> list[str]:
     # backend retries / falls back.
     if any(not line.strip() for line in out):
         raise LengthMismatchError(expected, sum(1 for line in out if line.strip()))
+
+    # A run of identical consecutive lines means the model padded the count by
+    # repeating one translation — the dub would speak it several times. Reject.
+    run = 1
+    for prev, cur in zip(out, out[1:]):
+        run = run + 1 if cur == prev else 1
+        if run >= _MAX_DUPLICATE_RUN:
+            raise LengthMismatchError(expected, len(set(out)))
     return out

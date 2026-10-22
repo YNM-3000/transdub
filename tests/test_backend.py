@@ -107,6 +107,18 @@ def test_parse_numbered_raises_on_missing_index():
         _parse_numbered("1. 甲\n3. 丙", 3)  # missing #2
 
 
+def test_parse_numbered_raises_on_repeated_run():
+    # Model padded the count by repeating one line 3× → dub would speak it 3×.
+    text = "1. 这是同一句话\n2. 这是同一句话\n3. 这是同一句话\n4. 不同"
+    with pytest.raises(LengthMismatchError):
+        _parse_numbered(text, 4)
+
+
+def test_parse_numbered_allows_a_single_adjacent_repeat():
+    # Two identical adjacent lines can be legitimate; don't over-reject.
+    assert _parse_numbered("1. 好的\n2. 好的\n3. 走吧", 3) == ["好的", "好的", "走吧"]
+
+
 def test_non_retryable_4xx_surfaces_immediately():
     class AuthError(Exception):
         status_code = 401
