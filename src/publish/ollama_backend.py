@@ -17,10 +17,10 @@ log = logging.getLogger("transdub.publish")
 
 MAX_RETRIES = 3
 BACKOFF_BASE_S = 1.0
-# Publish metadata is the only LLM step now (translation is dedicated MT), so we
-# default to a strong, cheap hosted model served through Ollama's cloud. Override
-# with $PUBLISH_MODEL (any Ollama model, local or `:cloud`).
-DEFAULT_PUBLISH_MODEL = "minimax-m3.1-flash:cloud"
+# Publish metadata is the only LLM step now (translation is dedicated MT). Default
+# to a free local model that gives good Chinese metadata; Claude is the fallback.
+# Override with $PUBLISH_MODEL (any Ollama model, local or `:cloud`).
+DEFAULT_PUBLISH_MODEL = "qwen3.5:9b"
 
 
 def publish_model() -> str:

@@ -57,13 +57,14 @@ cp .env.example .env             # 填入所需配置（见下）
 ollama pull hf.co/mradermacher/Hunyuan-MT-7B-GGUF:Q4_K_M
 ```
 
-**发布文案是唯一的 LLM 环节。** 默认通过 [Ollama](https://ollama.com) 云端使用
-**`minimax-m3.1-flash:cloud`**（强而便宜的托管模型），不可用时回退到 Claude。可用
-`PUBLISH_MODEL` 覆盖（任意 Ollama 模型，本地或 `:cloud`）：
+**发布文案是唯一的 LLM 环节。** 默认使用免费的本地 **`qwen3.5:9b`**（通过
+[Ollama](https://ollama.com)，中文文案不错），Ollama 不可用时回退到 Claude。可用
+`PUBLISH_MODEL` 覆盖——任意 Ollama 模型，本地或 `:cloud`（云端模型需 `ollama signin`，
+`minimax-m3.1-flash:cloud` 等付费模型还需额度）：
 
 ```bash
-ollama signin                               # 使用 :cloud 模型需一次性登录
-export PUBLISH_MODEL=minimax-m3.1-flash:cloud   # 默认值；也可换成 qwen3.5:9b 等
+ollama pull qwen3.5:9b                 # 默认发布模型（本地、免费）
+# export PUBLISH_MODEL=gpt-oss:20b-cloud   # 或云端模型（先 ollama signin）
 ```
 
 ### 环境变量（`.env`）
@@ -93,7 +94,7 @@ engines (local vs cloud):
     subtitle:   YouTube captions            (或 "local · whisper:small")
     translate:  online · google-translate
     dub:        online · edge-tts:zh-CN-XiaoxiaoNeural
-    publish:    cloud · ollama:minimax-m3.1-flash:cloud
+    publish:    local · ollama:qwen3.5:9b
 ```
 
 同样的汇总——外加每个环节的状态、配音音色以及任何错误——会以

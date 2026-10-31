@@ -66,14 +66,15 @@ and drop/merge lines, so they're not used for translation. See `--backend`.
 ollama pull hf.co/mradermacher/Hunyuan-MT-7B-GGUF:Q4_K_M
 ```
 
-**Publish metadata** is the only LLM step. It defaults to
-**`minimax-m3.1-flash:cloud`** served through [Ollama](https://ollama.com)'s cloud
-(a strong, cheap hosted model), falling back to Claude if it's unavailable.
-Override with `PUBLISH_MODEL` (any Ollama model, local or `:cloud`):
+**Publish metadata** is the only LLM step. It defaults to a free local
+**`qwen3.5:9b`** via [Ollama](https://ollama.com) (good Chinese metadata),
+falling back to Claude if Ollama is unavailable. Override with `PUBLISH_MODEL` —
+any Ollama model, local or a `:cloud` one (cloud models need `ollama signin` and,
+for paid ones like `minimax-m3.1-flash:cloud`, usage credits):
 
 ```bash
-ollama signin                               # one-time, for :cloud models
-export PUBLISH_MODEL=minimax-m3.1-flash:cloud   # the default; or e.g. qwen3.5:9b
+ollama pull qwen3.5:9b                 # the default publish model (free, local)
+# export PUBLISH_MODEL=gpt-oss:20b-cloud   # or a cloud model (ollama signin first)
 ```
 
 ### Environment (`.env`)
@@ -104,7 +105,7 @@ engines (local vs cloud):
     subtitle:   YouTube captions            (or "local · whisper:small")
     translate:  online · google-translate
     dub:        online · edge-tts:zh-CN-XiaoxiaoNeural
-    publish:    cloud · ollama:minimax-m3.1-flash:cloud
+    publish:    local · ollama:qwen3.5:9b
 ```
 
 The same summary — plus each stage's status, the dub voice, and any errors — is
