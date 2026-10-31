@@ -87,8 +87,8 @@ def get_backend(name: str) -> TranslationBackend:
 
     "auto" (the default) prefers a local Ollama model and falls back to Claude
     when Ollama isn't reachable — so translation runs locally/free when
-    possible and still works out of the box otherwise. "ollama"/"local" and
-    "claude" force a specific engine.
+    possible and still works out of the box otherwise. "ollama"/"local",
+    "claude", and "google" (free online MT, one line per cue) force an engine.
     """
     key = (name or "auto").strip().lower()
 
@@ -101,6 +101,11 @@ def get_backend(name: str) -> TranslationBackend:
         from .ollama_backend import OllamaBackend
 
         return OllamaBackend()
+
+    if key in ("google", "google-translate"):
+        from .google_backend import GoogleBackend
+
+        return GoogleBackend()
 
     if key == "auto":
         import os
