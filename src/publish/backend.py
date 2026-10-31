@@ -75,19 +75,17 @@ def get_metadata_backend(name: str) -> MetadataBackend:
         key = "auto"
 
     if key == "auto":
-        import os
-
         from translate.ollama_backend import ollama_available
 
         from .claude_backend import ClaudeMetadataBackend
+        from .ollama_backend import OllamaMetadataBackend, publish_model
 
-        if ollama_available(model=os.environ.get("OLLAMA_MODEL")):
-            from .ollama_backend import OllamaMetadataBackend
-
-            log.info("publish: local Ollama (Claude fallback) metadata backend")
+        model = publish_model()
+        if ollama_available(model=model):
+            log.info("publish: Ollama %s (Claude fallback) metadata backend", model)
             return FallbackMetadataBackend(OllamaMetadataBackend(), make_secondary=ClaudeMetadataBackend)
 
-        log.info("publish: Ollama unavailable, using Claude metadata backend")
+        log.info("publish: %s unavailable, using Claude metadata backend", model)
         return ClaudeMetadataBackend()
 
     raise ValueError(f"unknown metadata backend: {name!r}")

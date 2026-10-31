@@ -129,6 +129,24 @@ def test_ollama_metadata_backend_via_transport():
     assert backend.describe() == "local · ollama:qwen"
 
 
+def test_publish_defaults_to_minimax_cloud(monkeypatch):
+    monkeypatch.delenv("PUBLISH_MODEL", raising=False)
+    from publish.ollama_backend import DEFAULT_PUBLISH_MODEL, OllamaMetadataBackend, publish_model
+
+    assert DEFAULT_PUBLISH_MODEL == "minimax-m3.1-flash:cloud"
+    assert publish_model() == "minimax-m3.1-flash:cloud"
+    be = OllamaMetadataBackend(transport=lambda u: SAMPLE)
+    assert be.model == "minimax-m3.1-flash:cloud"
+    assert be.describe() == "cloud · ollama:minimax-m3.1-flash:cloud"
+
+
+def test_publish_model_env_override(monkeypatch):
+    monkeypatch.setenv("PUBLISH_MODEL", "qwen3.5:9b")
+    from publish.ollama_backend import publish_model
+
+    assert publish_model() == "qwen3.5:9b"
+
+
 def test_fallback_metadata_backend_falls_back_and_describes():
     from publish.backend import FallbackMetadataBackend
 

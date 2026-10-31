@@ -46,23 +46,25 @@ cp .env.example .env             # 填入所需配置（见下）
 
 除核心安装外一切皆可选，并且会优雅降级——缺少某个 extra 只会跳过对应环节并给出警告。
 
-### 本地模型（可选，但推荐）
+### 模型
 
-翻译与发布文案在本地 [Ollama](https://ollama.com) 服务可用时优先使用本地模型，
-否则改用 Claude。
+**翻译不再使用 LLM**——改用专用机器翻译（默认在线 Google，或本地 Hunyuan-MT），
+逐句翻译、行数永不漂移。聊天模型（qwen、llama）会在密集内容上过度扩写、丢行/合并，
+因此不用于翻译。参见 `--backend`。
 
 ```bash
-ollama serve                     # 启动本地服务
-ollama pull qwen3.5:9b           # 用于发布文案（此处 qwen 最佳）
-# 推荐用于可靠的「本地翻译」——专用机器翻译模型：
+# 可选：本地翻译用的专用 MT 模型（无需云端，自动检测）
 ollama pull hf.co/mradermacher/Hunyuan-MT-7B-GGUF:Q4_K_M
 ```
 
-**翻译请拉取 Hunyuan-MT。** 聊天模型（qwen、llama）在密集内容上不可靠：被要求输出
-“N 条编号行”时会丢行/合并/重复，最后频繁回退到 Claude。专用机器翻译模型**逐句翻译**
-不会漂移行数，且中文质量很好——`auto` 会自动检测已拉取的 Hunyuan-MT 并使用它（以免费
-Google 作为回退），本地翻译即可开箱即用。qwen 在**发布文案**上仍最佳，两个都拉最理想。
-参见下文 `--backend`。
+**发布文案是唯一的 LLM 环节。** 默认通过 [Ollama](https://ollama.com) 云端使用
+**`minimax-m3.1-flash:cloud`**（强而便宜的托管模型），不可用时回退到 Claude。可用
+`PUBLISH_MODEL` 覆盖（任意 Ollama 模型，本地或 `:cloud`）：
+
+```bash
+ollama signin                               # 使用 :cloud 模型需一次性登录
+export PUBLISH_MODEL=minimax-m3.1-flash:cloud   # 默认值；也可换成 qwen3.5:9b 等
+```
 
 ### 环境变量（`.env`）
 
@@ -88,10 +90,10 @@ uv run transdub-run "https://www.youtube.com/watch?v=VIDEO_ID"
 ```
 engines (local vs cloud):
     download:   yt-dlp
-    subtitle:   local · whisper:small        (或 "YouTube captions")
-    translate:  local · ollama:qwen3.5:9b (3/3 chunks)
+    subtitle:   YouTube captions            (或 "local · whisper:small")
+    translate:  online · google-translate
     dub:        online · edge-tts:zh-CN-XiaoxiaoNeural
-    publish:    local · ollama:qwen3.5:9b
+    publish:    cloud · ollama:minimax-m3.1-flash:cloud
 ```
 
 同样的汇总——外加每个环节的状态、配音音色以及任何错误——会以

@@ -54,25 +54,27 @@ cp .env.example .env             # fill in keys (see below)
 Everything except the core install is optional and degrades gracefully — a
 missing extra just skips its stage with a warning.
 
-### Local models (optional but preferred)
+### Models
 
-Translation and publish metadata prefer a local [Ollama](https://ollama.com)
-model when the server is reachable, and otherwise use Claude.
+**Translation** no longer uses an LLM — it uses dedicated machine translation
+(online Google by default, or a local Hunyuan-MT), which translates per cue so
+the line count never drifts. Chat models (qwen, llama) over-expand dense content
+and drop/merge lines, so they're not used for translation. See `--backend`.
 
 ```bash
-ollama serve                     # start the local server
-ollama pull qwen3.5:9b           # for publish metadata (qwen is best here)
-# Recommended for reliable *local translation* — a dedicated MT model:
+# Optional: local translation via a dedicated MT model (no cloud, auto-detected)
 ollama pull hf.co/mradermacher/Hunyuan-MT-7B-GGUF:Q4_K_M
 ```
 
-**For translation, pull Hunyuan-MT.** Chat models (qwen, llama) are unreliable on
-dense content: asked to emit "N numbered lines" they drop/merge/repeat lines and
-end up falling back to Claude constantly. A dedicated MT model translated
-**one cue at a time** can't drift the line count and gives excellent Chinese —
-`auto` detects a pulled Hunyuan-MT and uses it automatically (with a free Google
-pass as fallback), so local translation just works. qwen still gives the best
-**publish metadata**, so pulling both is ideal. See `--backend` below.
+**Publish metadata** is the only LLM step. It defaults to
+**`minimax-m3.1-flash:cloud`** served through [Ollama](https://ollama.com)'s cloud
+(a strong, cheap hosted model), falling back to Claude if it's unavailable.
+Override with `PUBLISH_MODEL` (any Ollama model, local or `:cloud`):
+
+```bash
+ollama signin                               # one-time, for :cloud models
+export PUBLISH_MODEL=minimax-m3.1-flash:cloud   # the default; or e.g. qwen3.5:9b
+```
 
 ### Environment (`.env`)
 
@@ -99,10 +101,10 @@ transient failure. It prints the final metadata and a per-phase
 ```
 engines (local vs cloud):
     download:   yt-dlp
-    subtitle:   local · whisper:small        (or "YouTube captions")
-    translate:  local · ollama:qwen3.5:9b (3/3 chunks)
+    subtitle:   YouTube captions            (or "local · whisper:small")
+    translate:  online · google-translate
     dub:        online · edge-tts:zh-CN-XiaoxiaoNeural
-    publish:    local · ollama:qwen3.5:9b
+    publish:    cloud · ollama:minimax-m3.1-flash:cloud
 ```
 
 The same summary — plus each stage's status, the dub voice, and any errors — is
