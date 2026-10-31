@@ -44,7 +44,8 @@ def test_get_backend_hunyuan_and_auto_preference(monkeypatch):
 
     assert isinstance(get_backend("hunyuan"), OllamaMTBackend)
 
-    # auto prefers the local MT model when one is pulled
+    # Offline (Google unreachable), auto prefers the local MT model when pulled.
+    monkeypatch.setattr("translate.google_backend.reachable", lambda *a, **k: False)
     monkeypatch.setattr(
         "translate.ollama_backend.available_models",
         lambda *a, **k: ["qwen3.5:9b", "hf.co/x/Hunyuan-MT-7B-GGUF:Q4_K_M"],

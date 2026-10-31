@@ -102,10 +102,11 @@ engines (local vs cloud):
 
 - `--no-dub` 跳过中文配音（默认开启）
 - `--voice zh-CN-YunxiNeural` 指定配音音色
-- `--backend auto|hunyuan|google|ollama|claude` 翻译引擎。`auto`（默认）优先使用已
-  拉取的本地 Hunyuan-MT（Google 回退），否则用本地聊天模型 + Claude 回退。`hunyuan` =
-  本地专用 MT（可靠、免费、质量最佳）；`google` = 免费在线 MT（快、无需 key）；两者都
-  逐句翻译，行数永不漂移。`ollama`/`claude` 强制使用聊天模型。
+- `--backend auto|google|hunyuan|ollama|claude` 翻译引擎。`auto`（默认）在可联网时
+  优先使用**免费在线 Google MT**（忠实、简洁、逐句翻译，行数永不漂移），离线则回退到
+  本地引擎（已拉取 Hunyuan-MT 则用它，否则聊天模型，最后 Claude）。`google`/`hunyuan`
+  强制使用对应的专用 MT；`ollama`/`claude` 强制聊天模型。（聊天模型在密集内容上会过度
+  扩写、可能丢行/合并——专用 MT 更可靠。）
 - `--sentences` 翻译前先把字幕碎片合并成完整句子——对本地模型而言可靠得多（单位完整、
   不丢行不重复），字幕也更易读。本地翻译时推荐开启。
 - `--stop-after translate` 停在人工校对字幕的关口（校对后再跑

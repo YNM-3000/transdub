@@ -159,7 +159,8 @@ def test_get_backend_auto_prefers_ollama_then_falls_back(monkeypatch):
     from translate.backend import FallbackBackend
     from translate.ollama_backend import OllamaBackend
 
-    # No dedicated MT model pulled → fall through to the chat-model path.
+    # Offline (Google unreachable) + no MT model → fall through to the chat path.
+    monkeypatch.setattr("translate.google_backend.reachable", lambda *a, **k: False)
     monkeypatch.setattr("translate.ollama_backend.available_models", lambda *a, **k: ["qwen3.5:9b"])
     monkeypatch.setattr("translate.ollama_backend.ollama_available", lambda **k: True)
     auto = backend_mod.get_backend("auto")  # local primary, Claude fallback
@@ -167,8 +168,15 @@ def test_get_backend_auto_prefers_ollama_then_falls_back(monkeypatch):
     assert isinstance(auto._primary, OllamaBackend)
     assert isinstance(backend_mod.get_backend(""), FallbackBackend)  # default is auto
 
-    monkeypatch.setattr("translate.ollama_backend.ollama_available", lambda **k: False)
-    assert isinstance(backend_mod.get_backend("auto"), ClaudeBackend)
+
+def test_get_backend_auto_prefers_google_when_online(monkeypatch):
+    from translate.backend import FallbackBackend, get_backend
+    from translate.google_backend import GoogleBackend
+
+    monkeypatch.setattr("translate.google_backend.reachable", lambda *a, **k: True)
+    auto = get_backend("auto")
+    assert isinstance(auto, FallbackBackend)
+    assert isinstance(auto._primary, GoogleBackend)
 
 
 def test_ollama_backend_translates_via_transport():

@@ -114,12 +114,13 @@ Useful flags:
 
 - `--no-dub` skip the Chinese voice dub (on by default)
 - `--voice zh-CN-YunxiNeural` pick the dub voice
-- `--backend auto|hunyuan|google|ollama|claude` translation engine. `auto`
-  (default) prefers a local Hunyuan-MT model if pulled (Google fallback), else a
-  local chat model with Claude fallback. `hunyuan` = local dedicated MT
-  (reliable, free, best quality); `google` = free online MT (fast, no key); both
-  translate per-cue so the line count never drifts. `ollama`/`claude` force a
-  chat model.
+- `--backend auto|google|hunyuan|ollama|claude` translation engine. `auto`
+  (default) prefers **free online Google MT** when reachable (faithful, concise,
+  per-cue so the line count never drifts), falling back to a local engine
+  offline; offline it uses a local Hunyuan-MT if pulled, else a chat model, then
+  Claude. `google` / `hunyuan` force those dedicated MT engines; `ollama` /
+  `claude` force a chat model. (Chat models over-expand dense content and can
+  drop/merge lines — dedicated MT is more reliable.)
 - `--sentences` merge caption fragments into whole sentences before translating
   — markedly more reliable for local models (coherent units, no dropped/repeated
   lines) and more readable subtitles. Recommended when translating locally.

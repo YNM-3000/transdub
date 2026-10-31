@@ -98,6 +98,22 @@ class GoogleBackend:
         return _extract(data)
 
 
+def reachable(timeout: float = 2.0) -> bool:
+    """True if Google's translate endpoint answers — used to prefer it in `auto`
+    only when online, so offline runs still fall back to a local engine."""
+    url = f"{ENDPOINT}?client=gtx&sl=en&tl={DEFAULT_TARGET}&dt=t&q=hi"
+    try:
+        urllib.request.urlopen(
+            urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"}),
+            timeout=timeout,
+        )
+        return True
+    except urllib.error.HTTPError:
+        return True  # any HTTP reply means it's reachable
+    except Exception:
+        return False
+
+
 def _extract(data) -> str:
     """Join the translated segments from a translate_a/single response."""
     segments = data[0] if data and data[0] else []

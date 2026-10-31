@@ -125,21 +125,34 @@ def get_backend(name: str) -> TranslationBackend:
         import os
 
         from .claude_backend import ClaudeBackend
+        from .google_backend import GoogleBackend, reachable as google_reachable
         from .ollama_backend import OllamaBackend, available_models, ollama_available
 
-        # Prefer a dedicated local MT model (e.g. Hunyuan-MT) if one is pulled:
-        # called per-cue it's reliable (no line-count drift) and needs no cloud,
-        # so it fixes the chat models' fallback-heavy behaviour. A free online
-        # Google pass rescues any cue the local model errors on — fully key-free.
+        def _local_or_claude() -> TranslationBackend:
+            """Best offline-capable engine, for when Google can't handle a chunk."""
+            mt = _find_mt_model(available_models())
+            if mt:
+                from .ollama_mt_backend import OllamaMTBackend
+
+                return OllamaMTBackend(model=mt)
+            if ollama_available(model=os.environ.get("OLLAMA_MODEL")):
+                return OllamaBackend()
+            return ClaudeBackend()
+
+        # Prefer free online Google MT when reachable — it's faithful and concise
+        # (per-cue, so the line count never drifts), and dedicated MT beats chat
+        # models on dense material. A local engine rescues any chunk it misses.
+        if google_reachable():
+            log.info("translate: online Google (local fallback) backend")
+            return FallbackBackend(GoogleBackend(), make_secondary=_local_or_claude)
+
+        # Offline: dedicated local MT if pulled, else a chat model, Claude last.
         mt_model = _find_mt_model(available_models())
         if mt_model:
-            from .google_backend import GoogleBackend
             from .ollama_mt_backend import OllamaMTBackend
 
-            log.info("translate: local MT %s (Google fallback) backend", mt_model)
-            return FallbackBackend(
-                OllamaMTBackend(model=mt_model), make_secondary=GoogleBackend
-            )
+            log.info("translate: local MT %s (Claude fallback) backend", mt_model)
+            return FallbackBackend(OllamaMTBackend(model=mt_model), make_secondary=ClaudeBackend)
 
         if ollama_available(model=os.environ.get("OLLAMA_MODEL")):
             log.info("translate: local Ollama (Claude fallback) backend")
