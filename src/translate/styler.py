@@ -14,18 +14,20 @@ import unicodedata
 
 import pysubs2
 
-# Chinese is the primary line: larger on top; English smaller underneath.
-# Sizes are FIXED (consistent across every cue); long lines fold to extra lines
-# rather than shrinking the font, which looked jittery cue-to-cue.
-ZH_FONTSIZE = 22
-EN_FONTSIZE = 13
+# Chinese is the primary line: on top; English smaller underneath. The Chinese
+# size is FIXED (consistent across cues) and kept small so most lines fit without
+# folding; when a line is still too long it folds to AT MOST two lines.
+ZH_FONTSIZE = 18
+EN_FONTSIZE = 12
+MIN_EN_FONTSIZE = 9
 FONT_NAME = "Arial"
 ALIGN_BOTTOM_CENTER = pysubs2.Alignment.BOTTOM_CENTER
 
-# Max display width per line (CJK chars count as 2). Tuned for a 16:9 frame; a
-# line wider than this is folded (Chinese) or shrunk (English).
-ZH_MAX_WIDTH = 38   # ~19 Chinese characters
-EN_MAX_WIDTH = 52
+# Max display width per line (CJK chars count as 2). The smaller Chinese font
+# fits more per line, so the threshold is higher — fewer folds.
+ZH_MAX_WIDTH = 48   # ~24 Chinese characters at fs18
+ZH_MAX_LINES = 2    # never fold Chinese beyond two lines
+EN_MAX_WIDTH = 64   # English stays on ONE line (font shrinks if wider)
 
 # Static look: white text, black outline (opaque; ASS alpha 0 == opaque).
 WHITE = pysubs2.Color(255, 255, 255, 0)
@@ -75,16 +77,30 @@ def _wrap(text: str, max_width: int) -> list[str]:
     return lines or [""]
 
 
-def _fold(text: str, max_width: int) -> str:
-    """Flatten then fold `text` onto extra lines (with \\N) if it's too wide.
+def _fold_zh(text: str) -> str:
+    """Chinese → at most two lines at the fixed font (never shrinks, never 3+).
 
-    Font size is left unchanged — folding, not shrinking — so every cue renders
-    at the same consistent size.
+    If it won't fit two lines at the normal width, the per-line budget is widened
+    so it still lands on exactly two balanced lines rather than folding further.
     """
     text = _flatten(text)
-    if _width(text) <= max_width:
+    if _width(text) <= ZH_MAX_WIDTH:
         return text
-    return "\\N".join(_wrap(text, max_width))
+    lines = _wrap(text, ZH_MAX_WIDTH)
+    if len(lines) > ZH_MAX_LINES:
+        budget = (_width(text) + ZH_MAX_LINES - 1) // ZH_MAX_LINES  # ~half each
+        lines = _wrap(text, budget)
+    return "\\N".join(lines)
+
+
+def _fit_en(text: str) -> tuple[str, int]:
+    """English (reference) → one line only, shrinking the font if it's too wide."""
+    text = _flatten(text)
+    width = _width(text)
+    if width <= EN_MAX_WIDTH:
+        return text, EN_FONTSIZE
+    size = max(MIN_EN_FONTSIZE, round(EN_FONTSIZE * EN_MAX_WIDTH / width))
+    return text, size
 
 
 def build_bilingual(cues: list[Cue], translations: list[str]) -> pysubs2.SSAFile:
@@ -112,10 +128,10 @@ def build_bilingual(cues: list[Cue], translations: list[str]) -> pysubs2.SSAFile
     style.marginv = MARGIN_V
 
     for cue, zh in zip(cues, translations):
-        zh_line = _fold(zh, ZH_MAX_WIDTH)
-        en_line = _fold(cue.text, EN_MAX_WIDTH)
-        # Chinese on top (larger), English below (smaller); both at fixed size.
-        text = f"{{\\fs{ZH_FONTSIZE}}}{zh_line}\\N{{\\fs{EN_FONTSIZE}}}{en_line}"
+        zh_line = _fold_zh(zh)            # Chinese: fixed size, at most two lines
+        en_line, en_fs = _fit_en(cue.text)  # English: one line, shrink if too wide
+        # Chinese on top (larger), English below (smaller).
+        text = f"{{\\fs{ZH_FONTSIZE}}}{zh_line}\\N{{\\fs{en_fs}}}{en_line}"
         subs.append(
             pysubs2.SSAEvent(
                 start=cue.start_ms,

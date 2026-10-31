@@ -12,7 +12,8 @@ from translate.styler import (
     WHITE,
     ZH_FONTSIZE,
     ZH_MAX_WIDTH,
-    _fold,
+    _fit_en,
+    _fold_zh,
     _width,
     build_bilingual,
 )
@@ -25,23 +26,32 @@ def test_width_counts_cjk_as_two():
 
 
 def test_short_line_stays_one_line():
-    assert "\\N" not in _fold("你好世界", ZH_MAX_WIDTH)
+    assert "\\N" not in _fold_zh("你好世界")
 
 
-def test_long_chinese_folds_without_losing_text():
-    line = "这是一个非常长的中文字幕需要折行显示否则会超出屏幕宽度范围边界区域"  # > ZH_MAX_WIDTH
-    folded = _fold(line, ZH_MAX_WIDTH)
-    assert "\\N" in folded                    # wrapped onto extra line(s)
+def test_long_chinese_folds_to_at_most_two_lines():
+    line = "这" * 90  # absurdly long — would be many lines without a cap
+    folded = _fold_zh(line)
+    assert folded.count("\\N") == 1           # exactly two lines, never three+
     assert folded.replace("\\N", "") == line  # nothing lost
 
 
-def test_font_size_is_constant_across_cues():
+def test_chinese_font_is_constant_across_cues():
     import re
 
     cues = [Cue(0, 0, 1000, "a"), Cue(1, 1000, 2000, "b" * 120)]  # short + very long
     subs = build_bilingual(cues, ["短", "很长的中文" * 20])
     zh_sizes = {re.match(r"\{\\fs(\d+)\}", e.text).group(1) for e in subs}
-    assert zh_sizes == {str(ZH_FONTSIZE)}     # same size regardless of length
+    assert zh_sizes == {str(ZH_FONTSIZE)}     # Chinese size never varies
+
+
+def test_english_stays_one_line_and_shrinks():
+    long_en = "this is a very long english reference line " * 3
+    text, size = _fit_en(long_en)
+    assert "\\N" not in text                   # never folds to a second line
+    assert size < EN_FONTSIZE                   # shrinks to fit instead
+    short_text, short_size = _fit_en("short line")
+    assert short_size == EN_FONTSIZE            # normal lines keep the base size
 
 
 def test_build_bilingual_produces_one_event_per_cue(sample_cues):
