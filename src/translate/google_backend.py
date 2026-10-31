@@ -27,6 +27,12 @@ DEFAULT_TARGET = "zh-CN"
 MAX_RETRIES = 3
 BACKOFF_BASE_S = 1.0
 TIMEOUT_S = 15.0
+# Batch many cues into one request (newline-joined) to cut request count ~30x —
+# essential for long videos (thousands of fragment cues would otherwise rate-limit
+# the free endpoint). Google preserves the newline-separated lines; on any count
+# mismatch we fall back to per-cue for that batch so the 1:1 mapping is exact.
+BATCH_MAX_LINES = 30
+BATCH_MAX_CHARS = 1500
 
 
 class GoogleBackend:
@@ -58,18 +64,48 @@ class GoogleBackend:
         if not cues:
             return []
         out: list[str] = [""] * len(cues)
+        # Group non-blank cues into newline-batches (bounded by lines + chars).
+        batches: list[list[int]] = []
+        cur: list[int] = []
+        cur_chars = 0
+        for i, text in enumerate(cues):
+            if not text.strip():
+                continue
+            if cur and (len(cur) >= BATCH_MAX_LINES or cur_chars + len(text) > BATCH_MAX_CHARS):
+                batches.append(cur)
+                cur, cur_chars = [], 0
+            cur.append(i)
+            cur_chars += len(text) + 1
+        if cur:
+            batches.append(cur)
 
-        def one(i: int) -> None:
-            out[i] = self._translate_one(cues[i])
+        def do_batch(batch: list[int]) -> None:
+            texts = [cues[i] for i in batch]
+            result = self._translate_batch(texts)
+            for i, r in zip(batch, result):
+                out[i] = r
 
-        workers = min(self._workers, len(cues))
+        workers = min(self._workers, len(batches)) or 1
         if workers == 1:
-            for i in range(len(cues)):
-                one(i)
+            for b in batches:
+                do_batch(b)
         else:
             with ThreadPoolExecutor(max_workers=workers) as pool:
-                list(pool.map(one, range(len(cues))))
+                list(pool.map(do_batch, batches))
         return out
+
+    def _translate_batch(self, texts: list[str]) -> list[str]:
+        """Translate a group of cues in one request; fall back to per-cue on any
+        line-count mismatch so the 1:1 mapping is always exact."""
+        if len(texts) == 1:
+            return [self._translate_one(texts[0])]
+        try:
+            lines = self._request("\n".join(texts)).split("\n")
+        except Exception:
+            lines = []
+        if len(lines) == len(texts):
+            return [line.strip() for line in lines]
+        return [self._translate_one(t) for t in texts]  # fallback: guaranteed 1:1
 
     def _translate_one(self, text: str) -> str:
         if not text.strip():
