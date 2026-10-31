@@ -97,13 +97,16 @@ def test_claude_backend_retries_then_succeeds():
     assert md.title.startswith("USB-C")
 
 
-def test_get_metadata_backend_resolves_and_rejects():
+def test_get_metadata_backend_resolves_and_tolerates_translation_names(monkeypatch):
     from publish.ollama_backend import OllamaMetadataBackend
 
     assert isinstance(get_metadata_backend("claude"), ClaudeMetadataBackend)
     assert isinstance(get_metadata_backend("ollama"), OllamaMetadataBackend)
-    with pytest.raises(ValueError):
-        get_metadata_backend("nope")
+    # Translation-only engine names (shared --backend flag) fall back to auto,
+    # not an error — publish has no google/hunyuan MT equivalent.
+    monkeypatch.setattr("translate.ollama_backend.ollama_available", lambda **k: False)
+    assert isinstance(get_metadata_backend("google"), ClaudeMetadataBackend)
+    assert isinstance(get_metadata_backend("hunyuan"), ClaudeMetadataBackend)
 
 
 def test_get_metadata_backend_auto_prefers_ollama_then_falls_back(monkeypatch):

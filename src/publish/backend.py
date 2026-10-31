@@ -54,6 +54,9 @@ def get_metadata_backend(name: str) -> MetadataBackend:
 
     "auto" (default) prefers a local Ollama model and falls back to Claude,
     mirroring the translation stage. "ollama"/"local" and "claude" force one.
+    Metadata generation needs a chat model, so translation-only engine names
+    (google, hunyuan, …) resolve to "auto" rather than erroring — the publish
+    stage shares the `--backend` flag but has no MT equivalent.
     """
     key = (name or "auto").strip().lower()
 
@@ -66,6 +69,10 @@ def get_metadata_backend(name: str) -> MetadataBackend:
         from .ollama_backend import OllamaMetadataBackend
 
         return OllamaMetadataBackend()
+
+    if key not in ("auto", "claude", "ollama", "local"):
+        log.info("publish: no metadata backend for %r; using auto", key)
+        key = "auto"
 
     if key == "auto":
         import os
