@@ -34,6 +34,20 @@ def test_english_cues_takes_second_line(tmp_path):
     assert [c.text for c in cues] == ["Hello world", "Second line"]
 
 
+def test_chinese_cues_reconstructs_folded_lines(tmp_path):
+    # A long cue folded across \N must dub the WHOLE sentence, not just line 1.
+    subs = pysubs2.SSAFile()
+    subs.append(pysubs2.SSAEvent(
+        start=0, end=4000,
+        text=r"{\fs22}三个 Pod\N已就绪，但无法访问\N。\N{\fs13}Three pods\Nare ready"))
+    path = tmp_path / "folded.ass"
+    subs.save(str(path))
+
+    from dub.assread import chinese_cues, english_cues
+    assert chinese_cues(path)[0].text == "三个 Pod 已就绪，但无法访问。"  # full, no space before 。
+    assert english_cues(path)[0].text == "Three pods are ready"
+
+
 def test_pick_reference_window_merges_to_min_length():
     from dub.reference import pick_reference_window
 
