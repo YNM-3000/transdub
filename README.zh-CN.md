@@ -53,13 +53,16 @@ cp .env.example .env             # 填入所需配置（见下）
 
 ```bash
 ollama serve                     # 启动本地服务
-ollama pull qwen3.5:9b           # 一个中文能力好的模型（推荐 qwen）
-export OLLAMA_MODEL=qwen3.5:9b   # 否则自动挑选 qwen/yi/glm/… 中的模型
+ollama pull qwen3.5:9b           # 用于发布文案（此处 qwen 最佳）
+# 推荐用于可靠的「本地翻译」——专用机器翻译模型：
+ollama pull hf.co/mradermacher/Hunyuan-MT-7B-GGUF:Q4_K_M
 ```
 
-也可用：`llama3.1:8b`，或通过
-`ollama pull hf.co/mradermacher/Hunyuan-MT-7B-GGUF:Q4_K_M` 拉取 Hunyuan-MT。
-发布文案通常以 qwen 效果最佳。
+**翻译请拉取 Hunyuan-MT。** 聊天模型（qwen、llama）在密集内容上不可靠：被要求输出
+“N 条编号行”时会丢行/合并/重复，最后频繁回退到 Claude。专用机器翻译模型**逐句翻译**
+不会漂移行数，且中文质量很好——`auto` 会自动检测已拉取的 Hunyuan-MT 并使用它（以免费
+Google 作为回退），本地翻译即可开箱即用。qwen 在**发布文案**上仍最佳，两个都拉最理想。
+参见下文 `--backend`。
 
 ### 环境变量（`.env`）
 
@@ -99,8 +102,10 @@ engines (local vs cloud):
 
 - `--no-dub` 跳过中文配音（默认开启）
 - `--voice zh-CN-YunxiNeural` 指定配音音色
-- `--backend auto|ollama|claude` 翻译引擎（默认 `auto` = 本地优先 + Claude 回退；
-  发布文案同理）
+- `--backend auto|hunyuan|google|ollama|claude` 翻译引擎。`auto`（默认）优先使用已
+  拉取的本地 Hunyuan-MT（Google 回退），否则用本地聊天模型 + Claude 回退。`hunyuan` =
+  本地专用 MT（可靠、免费、质量最佳）；`google` = 免费在线 MT（快、无需 key）；两者都
+  逐句翻译，行数永不漂移。`ollama`/`claude` 强制使用聊天模型。
 - `--sentences` 翻译前先把字幕碎片合并成完整句子——对本地模型而言可靠得多（单位完整、
   不丢行不重复），字幕也更易读。本地翻译时推荐开启。
 - `--stop-after translate` 停在人工校对字幕的关口（校对后再跑
@@ -210,10 +215,11 @@ uv run transdub-data show VIDEO_ID
   时，音频会用本地 **Whisper**（`--extra asr`）转写成英文 SRT 再喂给翻译——所以
   没有字幕的视频依然能处理。能下载到的自动字幕是“滚动”格式（每条都重复上一行再加
   一行新内容），翻译前会先去滚动（`transdub-translate --no-clean` 可关闭）。
-- **翻译**采用编号行文本协议（而非 JSON——对标点更稳健）。`auto` 模式按块调用本地
-  Ollama 模型，对任何它搞砸的块回退到 Claude。异常回复（丢行、空行、重复行）会被检测
-  并重试/回退。加 **`--sentences`** 可在翻译前把字幕碎片合并成完整句子——强烈建议本地
-  模型使用，完整句子比句中碎片好翻译得多。
+- **翻译**有两种引擎形态。*聊天模型*（Ollama 的 qwen/llama，或 Claude）采用编号行文本
+  协议（而非 JSON——对标点更稳健），按块翻译；异常回复（丢行、空行、重复行）会被检测
+  并重试/回退。*专用 MT*（本地 Hunyuan-MT 或在线 Google）**逐句翻译**，行数永不漂移——
+  在密集内容上可靠得多，所以 `auto` 会优先使用已拉取的 Hunyuan-MT。加 **`--sentences`**
+  可先把字幕碎片合并成完整句子——更易读，对所有引擎也是更好的输入。
 - **配音**先把**字幕碎片合并成完整句子**（双语字幕被切成约 2 秒、常常断在句子中间
   的阅读窗口，直接配音效果很差），再逐句合成，并按其时间窗口对齐（加速上限 2.0×）。
   对齐是以“距该字幕结束还剩多少时间”为准来测量的，所以某句超时后会被压缩以**吸收
@@ -288,8 +294,9 @@ uv run pytest                    # 全部测试（无需网络/API/模型）
 
 - `download/` —— yt-dlp 封装 → 视频 + 字幕（+ info.json、封面图）
 - `transcribe/` —— Whisper ASR 回退 → 缺字幕时生成英文 SRT
-- `translate/` —— 字幕 → 双语 ASS；`TranslationBackend` 协议，含 Claude + Ollama
-  实现与本地优先的 `FallbackBackend`
+- `translate/` —— 字幕 → 双语 ASS；`TranslationBackend` 协议，含聊天实现（Claude、
+  Ollama）与逐句专用 MT 实现（本地 Hunyuan-MT、在线 Google），经 `FallbackBackend`
+  本地优先编排
 - `compose/` —— ffmpeg 把双语字幕烧录/软挂载进成品视频
 - `dub/` —— 中文 TTS 音轨（`VoiceBackend`：edge-tts / Kokoro），对齐字幕时间轴后
   替换音频

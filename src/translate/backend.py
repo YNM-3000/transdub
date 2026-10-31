@@ -82,6 +82,15 @@ def describe_backend(backend: object) -> str:
     return type(backend).__name__
 
 
+def _find_mt_model(names: list[str]) -> str | None:
+    """Pick a dedicated translation model from pulled Ollama models, if any."""
+    for n in names:
+        low = n.lower()
+        if "hunyuan-mt" in low or "hunyuan" in low or "-mt-" in low or "/mt" in low:
+            return n
+    return None
+
+
 def get_backend(name: str) -> TranslationBackend:
     """Resolve a translation backend by name.
 
@@ -107,11 +116,30 @@ def get_backend(name: str) -> TranslationBackend:
 
         return GoogleBackend()
 
+    if key in ("hunyuan", "hunyuan-mt", "ollama-mt", "mt"):
+        from .ollama_mt_backend import OllamaMTBackend
+
+        return OllamaMTBackend()
+
     if key == "auto":
         import os
 
         from .claude_backend import ClaudeBackend
-        from .ollama_backend import OllamaBackend, ollama_available
+        from .ollama_backend import OllamaBackend, available_models, ollama_available
+
+        # Prefer a dedicated local MT model (e.g. Hunyuan-MT) if one is pulled:
+        # called per-cue it's reliable (no line-count drift) and needs no cloud,
+        # so it fixes the chat models' fallback-heavy behaviour. A free online
+        # Google pass rescues any cue the local model errors on — fully key-free.
+        mt_model = _find_mt_model(available_models())
+        if mt_model:
+            from .google_backend import GoogleBackend
+            from .ollama_mt_backend import OllamaMTBackend
+
+            log.info("translate: local MT %s (Google fallback) backend", mt_model)
+            return FallbackBackend(
+                OllamaMTBackend(model=mt_model), make_secondary=GoogleBackend
+            )
 
         if ollama_available(model=os.environ.get("OLLAMA_MODEL")):
             log.info("translate: local Ollama (Claude fallback) backend")

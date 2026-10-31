@@ -61,13 +61,18 @@ model when the server is reachable, and otherwise use Claude.
 
 ```bash
 ollama serve                     # start the local server
-ollama pull qwen3.5:9b           # a Chinese-capable model (qwen recommended)
-export OLLAMA_MODEL=qwen3.5:9b   # otherwise auto-picks a qwen/yi/glm/… model
+ollama pull qwen3.5:9b           # for publish metadata (qwen is best here)
+# Recommended for reliable *local translation* — a dedicated MT model:
+ollama pull hf.co/mradermacher/Hunyuan-MT-7B-GGUF:Q4_K_M
 ```
 
-Also good: `llama3.1:8b`, or Hunyuan-MT via
-`ollama pull hf.co/mradermacher/Hunyuan-MT-7B-GGUF:Q4_K_M`. qwen tends to give
-the best publish metadata.
+**For translation, pull Hunyuan-MT.** Chat models (qwen, llama) are unreliable on
+dense content: asked to emit "N numbered lines" they drop/merge/repeat lines and
+end up falling back to Claude constantly. A dedicated MT model translated
+**one cue at a time** can't drift the line count and gives excellent Chinese —
+`auto` detects a pulled Hunyuan-MT and uses it automatically (with a free Google
+pass as fallback), so local translation just works. qwen still gives the best
+**publish metadata**, so pulling both is ideal. See `--backend` below.
 
 ### Environment (`.env`)
 
@@ -109,8 +114,12 @@ Useful flags:
 
 - `--no-dub` skip the Chinese voice dub (on by default)
 - `--voice zh-CN-YunxiNeural` pick the dub voice
-- `--backend auto|ollama|claude` translation engine (default `auto` =
-  local-first with Claude fallback; publish metadata mirrors this)
+- `--backend auto|hunyuan|google|ollama|claude` translation engine. `auto`
+  (default) prefers a local Hunyuan-MT model if pulled (Google fallback), else a
+  local chat model with Claude fallback. `hunyuan` = local dedicated MT
+  (reliable, free, best quality); `google` = free online MT (fast, no key); both
+  translate per-cue so the line count never drifts. `ollama`/`claude` force a
+  chat model.
 - `--sentences` merge caption fragments into whole sentences before translating
   — markedly more reliable for local models (coherent units, no dropped/repeated
   lines) and more readable subtitles. Recommended when translating locally.
@@ -232,13 +241,14 @@ uv run transdub-data show VIDEO_ID
   use a "rolling" format (each cue repeats the previous line plus one new
   line); these are de-rolled before translation (`transdub-translate
   --no-clean` to disable).
-- **Translation** uses a numbered-line text protocol (not JSON — robust to
-  punctuation). `auto` runs a local Ollama model per chunk and falls back to
-  Claude on any chunk it flubs. Bad responses (dropped, blank, or repeated
-  lines) are detected and retried/failed-over. Pass **`--sentences`** to merge
-  caption fragments into whole sentences before translating — strongly
-  recommended for local models, which handle coherent sentences far better than
-  mid-sentence slivers.
+- **Translation** has two engine shapes. *Chat models* (qwen/llama via Ollama,
+  or Claude) use a numbered-line text protocol (not JSON — robust to punctuation)
+  and translate a chunk at a time; bad responses (dropped, blank, or repeated
+  lines) are detected and retried/failed-over. *Dedicated MT* (Hunyuan-MT locally,
+  or Google online) translates **one cue at a time**, so the line count can never
+  drift — far more reliable on dense material, which is why `auto` prefers a
+  pulled Hunyuan-MT. Pass **`--sentences`** to merge caption fragments into whole
+  sentences first — more readable, and better input for every engine.
 - **Dubbing** first **merges the caption fragments into whole sentences** (the
   bilingual subtitle is chopped into ~2s reading windows mid-sentence, which
   dubs badly), synthesizes each sentence, and fits it to its time window
@@ -324,7 +334,8 @@ behind a protocol, so the flow can later move onto a workflow framework.
 - `download/` — yt-dlp wrapper → video + subtitles (+ info.json, thumbnail)
 - `transcribe/` — Whisper ASR fallback → English SRT when captions are missing
 - `translate/` — subtitle → bilingual ASS; `TranslationBackend` protocol with
-  Claude + Ollama impls and a local-first `FallbackBackend`
+  chat impls (Claude, Ollama) and per-cue dedicated-MT impls (Hunyuan-MT local,
+  Google online), wired local-first via `FallbackBackend`
 - `compose/` — ffmpeg burn-in / soft-mux of bilingual subs into a final video
 - `dub/` — Chinese TTS voice track (edge-tts / Kokoro `VoiceBackend`) fitted to
   the subtitle timeline, replacing the audio

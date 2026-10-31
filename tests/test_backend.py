@@ -159,6 +159,8 @@ def test_get_backend_auto_prefers_ollama_then_falls_back(monkeypatch):
     from translate.backend import FallbackBackend
     from translate.ollama_backend import OllamaBackend
 
+    # No dedicated MT model pulled → fall through to the chat-model path.
+    monkeypatch.setattr("translate.ollama_backend.available_models", lambda *a, **k: ["qwen3.5:9b"])
     monkeypatch.setattr("translate.ollama_backend.ollama_available", lambda **k: True)
     auto = backend_mod.get_backend("auto")  # local primary, Claude fallback
     assert isinstance(auto, FallbackBackend)
