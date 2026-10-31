@@ -9,12 +9,10 @@ from translate.styler import (
     BLACK,
     EN_FONTSIZE,
     MARGIN_V,
-    MIN_ZH_FONTSIZE,
     WHITE,
     ZH_FONTSIZE,
     ZH_MAX_WIDTH,
-    _fit_en,
-    _fold_zh,
+    _fold,
     _width,
     build_bilingual,
 )
@@ -26,31 +24,24 @@ def test_width_counts_cjk_as_two():
     assert _width("中a") == 3
 
 
-def test_short_chinese_stays_one_line_at_base_size():
-    text, size = _fold_zh("你好世界")
-    assert "\\N" not in text and size == ZH_FONTSIZE
+def test_short_line_stays_one_line():
+    assert "\\N" not in _fold("你好世界", ZH_MAX_WIDTH)
 
 
-def test_long_chinese_folds_to_two_lines():
-    line = "这是一个非常长的中文字幕需要折行显示否则会超出屏幕宽度范围"  # > ZH_MAX_WIDTH
-    text, size = _fold_zh(line)
-    assert text.count("\\N") == 1            # exactly two lines
-    assert size == ZH_FONTSIZE               # fits in two at base size
-    assert text.replace("\\N", "") == line   # nothing lost
+def test_long_chinese_folds_without_losing_text():
+    line = "这是一个非常长的中文字幕需要折行显示否则会超出屏幕宽度范围边界区域"  # > ZH_MAX_WIDTH
+    folded = _fold(line, ZH_MAX_WIDTH)
+    assert "\\N" in folded                    # wrapped onto extra line(s)
+    assert folded.replace("\\N", "") == line  # nothing lost
 
 
-def test_very_long_chinese_shrinks_font_and_stays_two_lines():
-    line = "中" * 60  # far wider than two base-size lines can hold
-    text, size = _fold_zh(line)
-    assert text.count("\\N") == 1            # still only two lines
-    assert size < ZH_FONTSIZE and size >= MIN_ZH_FONTSIZE
+def test_font_size_is_constant_across_cues():
+    import re
 
-
-def test_long_english_shrinks_but_stays_one_line():
-    line = "this is a very long english reference line that would otherwise overflow the frame width"
-    text, size = _fit_en(line)
-    assert "\\N" not in text and text == line
-    assert size < EN_FONTSIZE
+    cues = [Cue(0, 0, 1000, "a"), Cue(1, 1000, 2000, "b" * 120)]  # short + very long
+    subs = build_bilingual(cues, ["短", "很长的中文" * 20])
+    zh_sizes = {re.match(r"\{\\fs(\d+)\}", e.text).group(1) for e in subs}
+    assert zh_sizes == {str(ZH_FONTSIZE)}     # same size regardless of length
 
 
 def test_build_bilingual_produces_one_event_per_cue(sample_cues):

@@ -15,10 +15,10 @@ import unicodedata
 import pysubs2
 
 # Chinese is the primary line: larger on top; English smaller underneath.
+# Sizes are FIXED (consistent across every cue); long lines fold to extra lines
+# rather than shrinking the font, which looked jittery cue-to-cue.
 ZH_FONTSIZE = 22
 EN_FONTSIZE = 13
-MIN_ZH_FONTSIZE = 16
-MIN_EN_FONTSIZE = 10
 FONT_NAME = "Arial"
 ALIGN_BOTTOM_CENTER = pysubs2.Alignment.BOTTOM_CENTER
 
@@ -75,28 +75,16 @@ def _wrap(text: str, max_width: int) -> list[str]:
     return lines or [""]
 
 
-def _fold_zh(text: str) -> tuple[str, int]:
-    """Chinese → (text with \\N breaks, font size). At most two lines; if it
-    won't fit in two at the base size, shrink the font so it does."""
-    text = _flatten(text)
-    if _width(text) <= ZH_MAX_WIDTH:
-        return text, ZH_FONTSIZE
-    lines = _wrap(text, ZH_MAX_WIDTH)
-    if len(lines) <= 2:
-        return "\\N".join(lines), ZH_FONTSIZE
-    budget = (_width(text) + 1) // 2  # widen so two lines suffice
-    size = max(MIN_ZH_FONTSIZE, round(ZH_FONTSIZE * ZH_MAX_WIDTH / budget))
-    return "\\N".join(_wrap(text, budget)), size
+def _fold(text: str, max_width: int) -> str:
+    """Flatten then fold `text` onto extra lines (with \\N) if it's too wide.
 
-
-def _fit_en(text: str) -> tuple[str, int]:
-    """English (reference) → (one line, font size), shrinking if too wide."""
+    Font size is left unchanged — folding, not shrinking — so every cue renders
+    at the same consistent size.
+    """
     text = _flatten(text)
-    width = _width(text)
-    if width <= EN_MAX_WIDTH:
-        return text, EN_FONTSIZE
-    size = max(MIN_EN_FONTSIZE, round(EN_FONTSIZE * EN_MAX_WIDTH / width))
-    return text, size
+    if _width(text) <= max_width:
+        return text
+    return "\\N".join(_wrap(text, max_width))
 
 
 def build_bilingual(cues: list[Cue], translations: list[str]) -> pysubs2.SSAFile:
@@ -124,10 +112,10 @@ def build_bilingual(cues: list[Cue], translations: list[str]) -> pysubs2.SSAFile
     style.marginv = MARGIN_V
 
     for cue, zh in zip(cues, translations):
-        zh_line, zh_fs = _fold_zh(zh)
-        en_line, en_fs = _fit_en(cue.text)
-        # Chinese on top (larger, up to two lines), English below (smaller).
-        text = f"{{\\fs{zh_fs}}}{zh_line}\\N{{\\fs{en_fs}}}{en_line}"
+        zh_line = _fold(zh, ZH_MAX_WIDTH)
+        en_line = _fold(cue.text, EN_MAX_WIDTH)
+        # Chinese on top (larger), English below (smaller); both at fixed size.
+        text = f"{{\\fs{ZH_FONTSIZE}}}{zh_line}\\N{{\\fs{EN_FONTSIZE}}}{en_line}"
         subs.append(
             pysubs2.SSAEvent(
                 start=cue.start_ms,

@@ -1,9 +1,11 @@
-"""Strip translator notes / meta-commentary from model output.
+"""Strip parenthetical glosses / translator notes from model output.
 
-LLMs (local ones especially) sometimes inject annotations into a translated
-line — e.g. `（注：此处为直译错误…）` or a whole deliberation in parentheses.
-Those must never reach the subtitle/dub, so they're removed deterministically
-regardless of which backend produced them.
+Translation models (dedicated MT especially, e.g. Hunyuan-MT) love to pad a line
+with parenthetical asides: a kept source term `手动配置（provisioning）`, a proper
+noun gloss `威瑞森（Verizon）`, a meta-note `（此处内容似乎不完整…）`, or an
+explanatory aside `（即账户无法关联）`. None belong in a subtitle/dub — they clutter
+the text and lengthen the spoken line (making it overrun its time window). So we
+drop parenthetical groups wholesale, regardless of which backend produced them.
 """
 
 from __future__ import annotations
@@ -12,26 +14,20 @@ import re
 
 _OPEN = "（("
 _CLOSE = "）)"
-# Markers that identify a parenthetical as a translator note / meta-commentary
-# (not real content) — e.g. the model hedging about garbled source audio with
-# `（此处内容似乎不完整或存在语法错误…）`. A group is dropped only if it contains
-# one of these, so genuine parentheticals in the translation are preserved.
-_NOTE_MARKERS = (
-    "注：", "注:", "译注", "譯注", "訳注", "注释", "注釋", "translator", "T/N",
-    # meta-commentary about the text itself (almost never legitimate content)
-    "此处", "此處", "原文", "似乎", "无法翻译", "無法翻譯", "语法错误", "語法錯誤",
-    "不完整", "疑似", "机翻", "機翻", "译者", "譯者", "音频", "音頻",
-    "untranslat", "unclear", "garbled", "(sic)", "[sic]",
-)
 _WS = re.compile(r"[ \t]{2,}")
 
 
 def strip_translator_notes(text: str) -> str:
-    """Remove parenthetical translator notes, handling nested brackets.
+    """Remove parenthetical groups (glosses/notes/asides), nesting-aware.
 
-    A bracket group is dropped only when it contains a note marker, so genuine
-    parentheticals in the translation are preserved.
+    Keeps a group only if dropping it would leave nothing — i.e. the whole line
+    is itself parenthesised — so a line is never emptied to blank.
     """
+    stripped = _strip_parens(text)
+    return stripped if stripped.strip() else _WS.sub(" ", text).strip()
+
+
+def _strip_parens(text: str) -> str:
     out: list[str] = []
     i, n = 0, len(text)
     while i < n:
@@ -39,12 +35,7 @@ def strip_translator_notes(text: str) -> str:
         if ch in _OPEN:
             end = _match_close(text, i)
             if end != -1:
-                group = text[i : end + 1]
-                if any(m in group for m in _NOTE_MARKERS):
-                    i = end + 1  # drop the whole note group
-                    continue
-                out.append(group)
-                i = end + 1
+                i = end + 1  # drop the whole bracketed group
                 continue
         out.append(ch)
         i += 1

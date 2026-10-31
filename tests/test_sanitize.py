@@ -19,8 +19,11 @@ def test_handles_nested_brackets_in_note():
     assert strip_translator_notes(text) == "开始结束"
 
 
-def test_keeps_legitimate_parentheticals():
-    assert strip_translator_notes("这个测试（很重要）保留") == "这个测试（很重要）保留"
+def test_strips_gloss_and_aside_parentheticals():
+    # MT glosses (kept source term / proper noun) and explanatory asides — gone.
+    assert strip_translator_notes("手动配置（provisioning）会出错") == "手动配置会出错"
+    assert strip_translator_notes("威瑞森（Verizon）发布报告") == "威瑞森发布报告"
+    assert strip_translator_notes("账户被孤立（即无法关联）了") == "账户被孤立了"
 
 
 def test_collapses_stray_double_spaces_and_trims():
@@ -36,3 +39,8 @@ def test_strips_meta_commentary_about_garbled_source():
     note = "（此处内容似乎不完整或存在语法错误……）根据相关法规"
     assert strip_translator_notes(note) == "根据相关法规"
     assert strip_translator_notes("开启SSO（原文如此）功能") == "开启SSO功能"
+
+
+def test_whole_line_parenthetical_is_kept():
+    # Don't empty a line that is entirely parenthesised.
+    assert strip_translator_notes("（全程旁白）") == "（全程旁白）"
