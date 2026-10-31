@@ -93,6 +93,7 @@ def run_full(
     store=None,
     stop_after: str | None = None,
     sentences: bool = False,
+    hw: bool = False,
     download_kwargs: dict | None = None,
     sleep=None,
 ) -> FlowResult:
@@ -147,7 +148,7 @@ def run_full(
     # 3. Compose
     cmp: ComposeResult = _timed("compose", lambda: retry(
         lambda: compose(
-            dl.video_path, tr.ass_path, output_dir=output_dir,
+            dl.video_path, tr.ass_path, output_dir=output_dir, hw=hw,
             on_progress=obs.make_progress("  compose", log),
         ),
         policy, success=lambda r: r.ok, **retry_kw,

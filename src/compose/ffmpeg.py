@@ -26,6 +26,10 @@ FFMPEG = "ffmpeg"
 FFPROBE = "ffprobe"
 DEFAULT_CRF = 20
 DEFAULT_PRESET = "medium"
+# Platform hardware encoder (macOS). Bitrate-based (no CRF); fast and immune to
+# CPU-load starvation, so long encodes don't stall.
+HW_CODEC = "h264_videotoolbox"
+DEFAULT_HW_BITRATE = "4M"
 DEFAULT_AUDIO = AAC
 AUDIO_BITRATE = "192k"
 DEFAULT_OUTPUT_DIR = "output"
@@ -91,12 +95,16 @@ def compose(
     audio: str = DEFAULT_AUDIO,
     output_dir: str | Path = DEFAULT_OUTPUT_DIR,
     preview_seconds: int | None = None,
+    hw: bool = False,
+    hw_bitrate: str = DEFAULT_HW_BITRATE,
     on_progress: ProgressFn | None = None,
     runner: Runner = _default_runner,
 ) -> ComposeResult:
     """Compose a final video. Never raises — failures are returned.
 
     `on_progress(pct)` (burn mode) receives encode-progress percentages.
+    `hw` burns on the platform hardware encoder (VideoToolbox) — much faster and
+    not starved by CPU load (recommended for long videos).
     """
     video = Path(video_path)
     subtitle = Path(subtitle_path)
@@ -108,7 +116,8 @@ def compose(
     if mode == SOFT:
         return _mux_soft(video, subtitle, out, audio, preview_seconds, runner)
     if mode == BURN:
-        return _burn(video, subtitle, out, crf, preset, audio, preview_seconds, on_progress, runner)
+        return _burn(video, subtitle, out, crf, preset, audio, preview_seconds,
+                     on_progress, runner, hw, hw_bitrate)
     return ComposeResult(video, subtitle, out, mode, ok=False, error=f"unknown mode: {mode!r}")
 
 
@@ -121,20 +130,27 @@ def build_burn_command(
     preview_seconds: int | None = None,
     sub_name: str = _SAFE_SUB_NAME,
     progress: bool = False,
+    hw: bool = False,
+    hw_bitrate: str = DEFAULT_HW_BITRATE,
 ) -> list[str]:
-    """ffmpeg argv for burning subs. `sub_name` is resolved relative to cwd."""
+    """ffmpeg argv for burning subs. `sub_name` is resolved relative to cwd.
+
+    With `hw`, encode on the platform hardware encoder (VideoToolbox on macOS)
+    instead of CPU x264 — far faster and, crucially, not starved by CPU load, so
+    long videos don't stall. Hardware uses a target bitrate rather than CRF.
+    """
     cmd = [FFMPEG, "-y"]
     if progress:
         cmd += ["-progress", "pipe:1", "-nostats"]
     cmd += ["-i", str(video.resolve())]
     if preview_seconds:
         cmd += ["-t", str(preview_seconds)]
-    cmd += [
-        "-vf", f"ass={sub_name}",
-        "-c:v", "libx264", "-crf", str(crf), "-preset", preset,
-        *_audio_args(audio),
-        str(out.resolve()),
-    ]
+    video_args = (
+        ["-c:v", HW_CODEC, "-b:v", hw_bitrate]
+        if hw
+        else ["-c:v", "libx264", "-crf", str(crf), "-preset", preset]
+    )
+    cmd += ["-vf", f"ass={sub_name}", *video_args, *_audio_args(audio), str(out.resolve())]
     return cmd
 
 
@@ -157,17 +173,20 @@ def build_soft_command(
     return cmd
 
 
-def _burn(video, subtitle, out, crf, preset, audio, preview_seconds, on_progress, runner) -> ComposeResult:
+def _burn(video, subtitle, out, crf, preset, audio, preview_seconds, on_progress, runner,
+          hw=False, hw_bitrate=DEFAULT_HW_BITRATE) -> ComposeResult:
     tmpdir = Path(tempfile.mkdtemp(prefix="transdub-compose-"))
     try:
         shutil.copyfile(subtitle, tmpdir / _SAFE_SUB_NAME)
         if on_progress is not None:
-            cmd = build_burn_command(video, out, crf, preset, audio, preview_seconds, progress=True)
+            cmd = build_burn_command(video, out, crf, preset, audio, preview_seconds,
+                                     progress=True, hw=hw, hw_bitrate=hw_bitrate)
             log.debug("ffmpeg: %s", " ".join(cmd))
             duration = float(preview_seconds) if preview_seconds else _probe_duration(video, runner)
             ok, err = _run_with_progress(cmd, str(tmpdir), duration, on_progress)
             return ComposeResult(video, subtitle, out, BURN, ok=ok, error=err)
-        cmd = build_burn_command(video, out, crf, preset, audio, preview_seconds)
+        cmd = build_burn_command(video, out, crf, preset, audio, preview_seconds,
+                                 hw=hw, hw_bitrate=hw_bitrate)
         log.debug("ffmpeg: %s", " ".join(cmd))
         proc = runner(cmd, cwd=str(tmpdir))
         return _result(video, subtitle, out, BURN, proc)

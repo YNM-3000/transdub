@@ -123,6 +123,8 @@ Useful flags:
 - `--sentences` merge caption fragments into whole sentences before translating
   — markedly more reliable for local models (coherent units, no dropped/repeated
   lines) and more readable subtitles. Recommended when translating locally.
+- `--hw` burn subtitles on the macOS hardware encoder (VideoToolbox) instead of
+  CPU x264 — much faster and not starved by other apps; **use it for long videos**
 - `--stop-after translate` halt at the human subtitle-review gate (then run
   `transdub-compose` / `transdub-dub` / `transdub-publish` after review)
 - `--stop-after compose` stop before publishing

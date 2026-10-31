@@ -11,6 +11,7 @@ import obs
 from .ffmpeg import (
     DEFAULT_AUDIO,
     DEFAULT_CRF,
+    DEFAULT_HW_BITRATE,
     DEFAULT_OUTPUT_DIR,
     DEFAULT_PRESET,
     compose,
@@ -49,6 +50,15 @@ def main(argv: list[str] | None = None) -> int:
         "--preview", type=int, metavar="SECONDS",
         help="only render the first N seconds (fast check before a full encode)",
     )
+    parser.add_argument(
+        "--hw", action="store_true",
+        help="burn on the hardware encoder (VideoToolbox on macOS) — much faster "
+             "and not starved by CPU load; recommended for long videos",
+    )
+    parser.add_argument(
+        "--hw-bitrate", default=DEFAULT_HW_BITRATE, metavar="RATE",
+        help=f"target video bitrate for --hw (default {DEFAULT_HW_BITRATE})",
+    )
     obs.add_verbose_arg(parser)
     args = parser.parse_args(argv)
     obs.configure(args.verbose)
@@ -68,6 +78,8 @@ def main(argv: list[str] | None = None) -> int:
         audio=args.audio,
         output_dir=args.output_dir,
         preview_seconds=args.preview,
+        hw=args.hw,
+        hw_bitrate=args.hw_bitrate,
         on_progress=obs.make_progress("compose", _log),
     )
 

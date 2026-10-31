@@ -79,6 +79,14 @@ def test_build_burn_command_progress_flag():
     assert "-progress" not in build_burn_command(Path("/v.mp4"), Path("/o.mp4"))
 
 
+def test_build_burn_command_hw_uses_videotoolbox_bitrate_not_x264():
+    cmd = build_burn_command(Path("/v.mp4"), Path("/o.mp4"), hw=True, hw_bitrate="5M")
+    assert cmd[cmd.index("-c:v") + 1] == "h264_videotoolbox"
+    assert cmd[cmd.index("-b:v") + 1] == "5M"
+    assert "-crf" not in cmd and "libx264" not in cmd
+    assert "ass=subtitle.ass" in cmd  # still burns the subtitle
+
+
 def test_parse_progress_us():
     from compose.ffmpeg import _parse_progress_us
     assert _parse_progress_us("out_time_us=12500000") == 12500000

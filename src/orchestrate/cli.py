@@ -129,6 +129,7 @@ def _run_pipeline(args) -> int:
                 store=store,
                 stop_after=args.stop_after,
                 sentences=args.sentences,
+                hw=args.hw,
                 download_kwargs=download_kwargs,
             )
             _print_flow(result)
@@ -168,6 +169,11 @@ def main(argv: list[str] | None = None) -> int:
         "--sentences", action="store_true",
         help="merge caption fragments into whole sentences before translating "
              "(more reliable for local models; more readable subtitles)",
+    )
+    parser.add_argument(
+        "--hw", action="store_true",
+        help="burn subtitles on the hardware encoder (VideoToolbox on macOS) — "
+             "much faster and not starved by CPU load; recommended for long videos",
     )
     parser.add_argument("--no-publish", action="store_true", help="skip the publish stage")
     parser.add_argument("--no-data", action="store_true", help="skip recording metrics")
