@@ -24,8 +24,12 @@ log = logging.getLogger("transdub.translate")
 
 # A strong, widely-available into-Chinese MT model (GGUF on Ollama).
 DEFAULT_MT_MODEL = "hf.co/mradermacher/Hunyuan-MT-7B-GGUF:Q4_K_M"
-# Hunyuan-MT's recommended instruction for translation into Chinese.
-DEFAULT_PROMPT = "把下面的文本翻译成中文，不要额外解释。\n\n{text}"
+# Hunyuan-MT instruction for into-Chinese translation. Only the translation —
+# no notes/brackets/explanations, even when the (ASR) source is garbled.
+DEFAULT_PROMPT = (
+    "把下面的文本翻译成中文。只输出译文本身，不要任何解释、备注或括号说明；"
+    "即使原文不完整或有误，也直接翻译，不要评论。\n\n{text}"
+)
 MAX_RETRIES = 3
 BACKOFF_BASE_S = 1.0
 GEN_TIMEOUT_S = 120.0

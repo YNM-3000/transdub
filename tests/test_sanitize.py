@@ -29,3 +29,10 @@ def test_collapses_stray_double_spaces_and_trims():
 
 def test_plain_text_unchanged():
     assert strip_translator_notes("普通的一行字幕") == "普通的一行字幕"
+
+
+def test_strips_meta_commentary_about_garbled_source():
+    # The exact failure seen in a dub: MT hedging about garbled ASR input.
+    note = "（此处内容似乎不完整或存在语法错误……）根据相关法规"
+    assert strip_translator_notes(note) == "根据相关法规"
+    assert strip_translator_notes("开启SSO（原文如此）功能") == "开启SSO功能"

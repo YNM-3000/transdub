@@ -9,10 +9,48 @@ from translate.styler import (
     BLACK,
     EN_FONTSIZE,
     MARGIN_V,
+    MIN_ZH_FONTSIZE,
     WHITE,
     ZH_FONTSIZE,
+    ZH_MAX_WIDTH,
+    _fit_en,
+    _fold_zh,
+    _width,
     build_bilingual,
 )
+
+
+def test_width_counts_cjk_as_two():
+    assert _width("abc") == 3
+    assert _width("中文") == 4
+    assert _width("中a") == 3
+
+
+def test_short_chinese_stays_one_line_at_base_size():
+    text, size = _fold_zh("你好世界")
+    assert "\\N" not in text and size == ZH_FONTSIZE
+
+
+def test_long_chinese_folds_to_two_lines():
+    line = "这是一个非常长的中文字幕需要折行显示否则会超出屏幕宽度范围"  # > ZH_MAX_WIDTH
+    text, size = _fold_zh(line)
+    assert text.count("\\N") == 1            # exactly two lines
+    assert size == ZH_FONTSIZE               # fits in two at base size
+    assert text.replace("\\N", "") == line   # nothing lost
+
+
+def test_very_long_chinese_shrinks_font_and_stays_two_lines():
+    line = "中" * 60  # far wider than two base-size lines can hold
+    text, size = _fold_zh(line)
+    assert text.count("\\N") == 1            # still only two lines
+    assert size < ZH_FONTSIZE and size >= MIN_ZH_FONTSIZE
+
+
+def test_long_english_shrinks_but_stays_one_line():
+    line = "this is a very long english reference line that would otherwise overflow the frame width"
+    text, size = _fit_en(line)
+    assert "\\N" not in text and text == line
+    assert size < EN_FONTSIZE
 
 
 def test_build_bilingual_produces_one_event_per_cue(sample_cues):

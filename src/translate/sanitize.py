@@ -12,8 +12,17 @@ import re
 
 _OPEN = "（("
 _CLOSE = "）)"
-# Markers that identify a parenthetical as a translator note (not real content).
-_NOTE_MARKERS = ("注：", "注:", "译注", "譯注", "訳注", "注释", "注釋", "translator", "T/N")
+# Markers that identify a parenthetical as a translator note / meta-commentary
+# (not real content) — e.g. the model hedging about garbled source audio with
+# `（此处内容似乎不完整或存在语法错误…）`. A group is dropped only if it contains
+# one of these, so genuine parentheticals in the translation are preserved.
+_NOTE_MARKERS = (
+    "注：", "注:", "译注", "譯注", "訳注", "注释", "注釋", "translator", "T/N",
+    # meta-commentary about the text itself (almost never legitimate content)
+    "此处", "此處", "原文", "似乎", "无法翻译", "無法翻譯", "语法错误", "語法錯誤",
+    "不完整", "疑似", "机翻", "機翻", "译者", "譯者", "音频", "音頻",
+    "untranslat", "unclear", "garbled", "(sic)", "[sic]",
+)
 _WS = re.compile(r"[ \t]{2,}")
 
 
