@@ -87,6 +87,24 @@ def build_upload_command(
     return cmd
 
 
+def _sibling(video: Path, suffix: str) -> Path:
+    """Metadata/cover path beside the video, e.g. `<video>.metadata.json`.
+
+    Publish writes those next to the *composed* video (`X.final.mp4`), so when
+    uploading the dubbed variant (`X.final.dubbed.mp4`) we fall back to the
+    un-dubbed sibling (`X.final.metadata.json`) when the direct name is absent.
+    """
+    base = video.with_suffix("")  # drop the video extension (.mp4)
+    direct = base.with_name(base.name + suffix)
+    if direct.is_file():
+        return direct
+    if base.name.endswith(".dubbed"):
+        alt = base.with_name(base.name[: -len(".dubbed")] + suffix)
+        if alt.is_file():
+            return alt
+    return direct  # non-existent direct path, for a clear error message
+
+
 def _default_runner(cmd: list[str]) -> "subprocess.CompletedProcess[str]":
     return subprocess.run(cmd, capture_output=True, text=True)
 
@@ -112,7 +130,7 @@ def upload_video(
     only builds the command — nothing is published.
     """
     video = Path(video_path)
-    meta_path = Path(metadata_path) if metadata_path else video.with_suffix(".metadata.json")
+    meta_path = Path(metadata_path) if metadata_path else _sibling(video, ".metadata.json")
     if not meta_path.is_file():
         return UploadResult(False, [], error=f"metadata not found: {meta_path}")
     try:
@@ -120,10 +138,9 @@ def upload_video(
     except Exception as err:
         return UploadResult(False, [], error=f"bad metadata JSON: {err}")
 
-    cover = cover_path
-    if cover is None:
-        candidate = video.with_suffix(".cover.jpg")
-        cover = candidate if candidate.is_file() else None
+    cover = Path(cover_path) if cover_path else _sibling(video, ".cover.jpg")
+    if not cover.is_file():
+        cover = None
 
     try:
         cmd = build_upload_command(

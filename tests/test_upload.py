@@ -69,6 +69,21 @@ def test_upload_video_runs_and_parses_bvid(tmp_path):
     assert result.ok and result.bvid == "BV1xy4y1z7AB"
 
 
+def test_upload_dubbed_video_finds_undubbed_metadata(tmp_path):
+    # metadata/cover live beside the composed video (X.final.*), not the dubbed one
+    (tmp_path / "X.final.metadata.json").write_text(json.dumps(META), encoding="utf-8")
+    (tmp_path / "X.final.cover.jpg").write_bytes(b"jpg")
+    dubbed = tmp_path / "X.final.dubbed.mp4"
+    dubbed.write_bytes(b"x")
+
+    result = upload_video(dubbed, dry_run=True)
+    assert result.ok
+    joined = " ".join(result.command)
+    assert "测试标题" in joined                      # read the un-dubbed metadata
+    assert "X.final.cover.jpg" in joined             # and the un-dubbed cover
+    assert result.command[-1].endswith("X.final.dubbed.mp4")  # uploads the dubbed file
+
+
 def test_upload_video_errors_without_credentials(tmp_path):
     video = tmp_path / "v.final.mp4"
     video.write_bytes(b"x")

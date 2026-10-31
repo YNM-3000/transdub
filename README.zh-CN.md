@@ -165,6 +165,9 @@ uv run transdub-upload "output/.../My Video.final.dubbed.mp4" --publish  # 上�
 # --tid <id> 分区 · --original（原创，而非转载）· --source <url> 覆盖来源
 ```
 
+`transdub-run` 会在完成摘要里打印可直接执行的上传命令。上传 `.dubbed` 视频时会自动
+使用生成在带字幕 `.final` 视频旁边的元数据与封面。
+
 ## 频道监控（可选）
 
 默认的工作方式是自己挑视频——直接把 URL 传给 `transdub-run` 即可。若想自动发现，

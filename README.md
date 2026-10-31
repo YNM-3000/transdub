@@ -187,6 +187,10 @@ uv run transdub-upload "output/.../My Video.final.dubbed.mp4" --publish  # uploa
 # --tid <id> category · --original (原创 instead of 转载) · --source <url> override
 ```
 
+`transdub-run` prints the ready-to-run upload command in its completion summary.
+Uploading the `.dubbed` video automatically uses the metadata + cover generated
+beside the subtitled `.final` video.
+
 ## Monitor channels (optional)
 
 Picking videos by hand is the default workflow — just pass URLs to `transdub-run`.

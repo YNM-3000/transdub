@@ -37,6 +37,18 @@ def _print_engines(engines: dict) -> None:
     print("─" * 60)
 
 
+def _print_upload_hint(result) -> None:
+    """Show the ready-to-run upload command (only when there's something to upload)."""
+    if not (result.publish and result.publish.metadata):
+        return  # no metadata → nothing to upload
+    video = result.dub.out_path if (result.dub and result.dub.ok) else (
+        result.compose.out_path if result.compose else None
+    )
+    if video is None:
+        return
+    print(f'    to upload:  uv run transdub-upload "{video}" --publish')
+
+
 def _print_flow(result) -> None:
     if result.status == COMPLETED:
         print(f"✓ {result.url} [completed]")
@@ -47,6 +59,7 @@ def _print_flow(result) -> None:
         if result.publish and result.publish.metadata:
             print(format_package(result.publish))
         _print_engines(result.engines)
+        _print_upload_hint(result)
     elif result.status == AWAITING_REVIEW:
         subs = result.translation.ass_path if result.translation else None
         print(f"⏸ {result.url} [awaiting review]  subs: {subs}")
