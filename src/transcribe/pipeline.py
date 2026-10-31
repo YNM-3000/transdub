@@ -16,16 +16,18 @@ def ensure_subtitle(
     transcriber: Transcriber,
     *,
     on_progress: ProgressFn | None = None,
+    out_path: str | Path | None = None,
 ) -> Path:
-    """Transcribe `video_path` and write an English SRT next to it.
+    """Transcribe `video_path` and write an English SRT.
 
-    The SRT is named `<video>.en.srt` so it blends in with a yt-dlp-downloaded
-    caption and is picked up by the same downstream stages. Idempotent: if that
-    SRT already exists and is non-empty it is reused, so a translate-stage retry
-    never re-runs the (slow) transcription.
+    Defaults to `<video>.en.srt` (so it blends in with a yt-dlp caption and feeds
+    the same downstream stages). Pass `out_path` to write elsewhere — e.g.
+    `<video>.whisper.srt` when forcing Whisper on a video that *also* has a
+    downloaded auto-caption, so the two don't collide. Idempotent: an existing
+    non-empty target is reused, so a translate retry never re-runs transcription.
     """
     video = Path(video_path)
-    out = video.with_suffix(".en.srt")
+    out = Path(out_path) if out_path else video.with_suffix(".en.srt")
     if out.is_file() and out.stat().st_size > 0:
         log.info("transcribe: reusing existing %s", out.name)
         return out

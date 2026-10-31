@@ -99,6 +99,21 @@ def test_translate_download_transcribes_when_no_subtitle(tmp_path, fake_backend)
     assert res.ass_path == video.with_suffix(".bilingual.ass")
 
 
+def test_translate_download_whisper_forces_transcription_over_caption(downloaded, fake_backend):
+    asr = FakeTranscriber()
+    res = translate_download(downloaded, fake_backend, whisper=True, transcriber=asr)
+
+    assert res.status == TRANSLATED and res.subtitle_source == "asr"
+    assert asr.calls == 1   # transcribed even though a caption was present
+    # written to a distinct name so it doesn't reuse / clobber the auto-caption
+    assert downloaded.video_path.with_suffix(".whisper.srt").is_file()
+
+
+def test_translate_download_whisper_without_transcriber_falls_back_to_caption(downloaded, fake_backend):
+    res = translate_download(downloaded, fake_backend, whisper=True, transcriber=None)
+    assert res.status == TRANSLATED and res.subtitle_source == "caption"  # graceful
+
+
 def test_translate_download_reports_transcribe_failure(tmp_path, fake_backend):
     video = tmp_path / "v.mp4"
     video.write_bytes(b"x")

@@ -129,6 +129,7 @@ def _run_pipeline(args) -> int:
                 store=store,
                 stop_after=args.stop_after,
                 sentences=args.sentences,
+                whisper=args.whisper,
                 hw=args.hw,
                 download_kwargs=download_kwargs,
             )
@@ -169,6 +170,12 @@ def main(argv: list[str] | None = None) -> int:
         "--sentences", action="store_true",
         help="merge caption fragments into whole sentences before translating "
              "(more reliable for local models; more readable subtitles)",
+    )
+    parser.add_argument(
+        "--whisper", action="store_true",
+        help="transcribe the audio with Whisper even when captions exist — "
+             "restores punctuation so --sentences merges on real sentence "
+             "boundaries (needs the asr extra; slower)",
     )
     parser.add_argument(
         "--hw", action="store_true",

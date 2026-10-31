@@ -35,6 +35,7 @@ def translate_download(
     *,
     clean: bool = True,
     sentences: bool = False,
+    whisper: bool = False,
     on_progress=None,
     transcriber: Transcriber | None = None,
     asr_progress=None,
@@ -44,27 +45,30 @@ def translate_download(
     When no caption track was downloaded, fall back to transcribing the audio
     with `transcriber` (if supplied) so the video is still translatable. With
     no transcriber, a caption-less video is skipped rather than failed hard.
+    `whisper` forces transcription even when a caption exists — Whisper restores
+    punctuation, giving clean sentence boundaries for `sentences` merging.
     """
     if not result.ok:
         return PipelineResult(result.url, DOWNLOAD_FAILED, result, error=result.error)
 
     subtitle = result.subtitle_path
     source = "caption"
-    if subtitle is None:
-        if transcriber is None or result.video_path is None:
-            return PipelineResult(
-                result.url, NO_SUBTITLE, result, error="no subtitle track"
-            )
-        log.info("no caption track; transcribing audio with Whisper …")
+    can_asr = transcriber is not None and result.video_path is not None
+    if (whisper or subtitle is None) and can_asr:
+        # Force Whisper writes to a distinct name so it doesn't reuse a caption.
+        out = result.video_path.with_suffix(".whisper.srt") if whisper else None
+        log.info("transcribing audio with Whisper%s …", " (forced)" if whisper and subtitle else "")
         source = "asr"
         try:
             subtitle = ensure_subtitle(
-                result.video_path, transcriber, on_progress=asr_progress
+                result.video_path, transcriber, on_progress=asr_progress, out_path=out
             )
         except Exception as err:
             return PipelineResult(
                 result.url, TRANSCRIBE_FAILED, result, error=str(err)
             )
+    elif subtitle is None:
+        return PipelineResult(result.url, NO_SUBTITLE, result, error="no subtitle track")
 
     anchor = result.video_path or subtitle
     out_path = anchor.with_suffix(".bilingual.ass")

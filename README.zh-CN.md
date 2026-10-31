@@ -109,6 +109,9 @@ engines (local vs cloud):
   扩写、可能丢行/合并——专用 MT 更可靠。）
 - `--sentences` 翻译前先把字幕碎片合并成完整句子——对本地模型而言可靠得多（单位完整、
   不丢行不重复），字幕也更易读。本地翻译时推荐开启。
+- `--whisper` 即使有字幕也用 Whisper 转写音频。YouTube 自动字幕没有标点，`--sentences`
+  只能按停顿/长度合并，可能跨句；Whisper 会恢复标点，给出干净的句子边界。与 `--sentences`
+  搭配使用；需要 `asr` extra，较慢（写入 `<video>.whisper.srt`）。
 - `--stop-after translate` 停在人工校对字幕的关口（校对后再跑
   `transdub-compose` / `transdub-dub` / `transdub-publish`）
 - `--stop-after compose` 在发布前停止

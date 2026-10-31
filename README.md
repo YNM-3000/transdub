@@ -124,6 +124,11 @@ Useful flags:
 - `--sentences` merge caption fragments into whole sentences before translating
   — markedly more reliable for local models (coherent units, no dropped/repeated
   lines) and more readable subtitles. Recommended when translating locally.
+- `--whisper` transcribe the audio with Whisper even when captions exist.
+  YouTube auto-captions have no punctuation, so `--sentences` can only merge on
+  pauses/length and may straddle sentences; Whisper restores punctuation, giving
+  clean sentence boundaries. Pairs with `--sentences`; needs the `asr` extra and
+  is slower (writes `<video>.whisper.srt`).
 - `--hw` burn subtitles on the macOS hardware encoder (VideoToolbox) instead of
   CPU x264 — much faster and not starved by other apps; **use it for long videos**
 - `--stop-after translate` halt at the human subtitle-review gate (then run
