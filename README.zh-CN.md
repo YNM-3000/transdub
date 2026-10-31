@@ -98,20 +98,26 @@ engines (local vs cloud):
 **`<video>.final.run.json`**（运行清单）的形式保存在产物旁边，失败的任务也会写入，
 方便事后排查某个环节到底用了哪个引擎。
 
+**默认行为**（可按下列方式关闭）：句子合并**开启**（`--no-sentences`）、硬件编码
+**开启**（`--no-hw`）、中文配音**开启**（`--no-dub`）且用 **edge-tts**
+（`--dub-engine gpt-sovits|kokoro|auto` 可切换）。所以 `transdub-run <url>` 直接给出
+合并后的易读字幕、快速烧录和 edge-tts 配音。想要最干净的句子边界时再加 `--whisper`。
+
 常用参数：
 
-- `--no-dub` 跳过中文配音（默认开启）
+- `--no-sentences` 按字幕碎片逐条翻译，而非合并成句（默认合并：字幕更易读、配音时间更贴合）
+- `--no-hw` 用 CPU x264 编码而非硬件编码（默认硬件：快且不受其他程序抢占——长视频尤其重要）
+- `--no-dub` 跳过中文配音（默认开启，edge-tts）
+- `--dub-engine edge|gpt-sovits|kokoro|auto` 选择配音引擎（默认 `edge`）
 - `--voice zh-CN-YunxiNeural` 指定配音音色
 - `--backend auto|google|hunyuan|ollama|claude` 翻译引擎。`auto`（默认）在可联网时
   优先使用**免费在线 Google MT**（忠实、简洁、逐句翻译，行数永不漂移），离线则回退到
   本地引擎（已拉取 Hunyuan-MT 则用它，否则聊天模型，最后 Claude）。`google`/`hunyuan`
   强制使用对应的专用 MT；`ollama`/`claude` 强制聊天模型。（聊天模型在密集内容上会过度
   扩写、可能丢行/合并——专用 MT 更可靠。）
-- `--sentences` 翻译前先把字幕碎片合并成完整句子——对本地模型而言可靠得多（单位完整、
-  不丢行不重复），字幕也更易读。本地翻译时推荐开启。
-- `--whisper` 即使有字幕也用 Whisper 转写音频。YouTube 自动字幕没有标点，`--sentences`
-  只能按停顿/长度合并，可能跨句；Whisper 会恢复标点，给出干净的句子边界。与 `--sentences`
-  搭配使用；需要 `asr` extra，较慢（写入 `<video>.whisper.srt`）。
+- `--whisper` 即使有字幕也用 Whisper 转写音频。YouTube 自动字幕没有标点，句子合并
+  只能按停顿/长度切分、可能跨句；Whisper 会恢复标点，给出干净的句子边界。需要 `asr`
+  extra，较慢（写入 `<video>.whisper.srt`）。
 - `--stop-after translate` 停在人工校对字幕的关口（校对后再跑
   `transdub-compose` / `transdub-dub` / `transdub-publish`）
 - `--stop-after compose` 在发布前停止

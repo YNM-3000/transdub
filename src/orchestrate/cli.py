@@ -159,17 +159,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output-dir", default="output")
     parser.add_argument(
         "--backend", default="auto",
-        help="translate backend: auto (local Ollama→Claude), ollama, or claude "
-             "(publish metadata always uses Claude)",
+        help="translate backend: auto (online Google, local fallback), google, "
+             "hunyuan, ollama, or claude",
     )
     parser.add_argument(
         "--stop-after", choices=["translate", "compose"],
         help="halt early (translate = stop at the human review gate)",
     )
     parser.add_argument(
-        "--sentences", action="store_true",
+        "--sentences", dest="sentences", action="store_true", default=True,
         help="merge caption fragments into whole sentences before translating "
-             "(more reliable for local models; more readable subtitles)",
+             "(ON by default; more readable subtitles and better dub timing)",
+    )
+    parser.add_argument(
+        "--no-sentences", dest="sentences", action="store_false",
+        help="translate per caption fragment instead of merging into sentences",
     )
     parser.add_argument(
         "--whisper", action="store_true",
@@ -178,9 +182,13 @@ def main(argv: list[str] | None = None) -> int:
              "boundaries (needs the asr extra; slower)",
     )
     parser.add_argument(
-        "--hw", action="store_true",
-        help="burn subtitles on the hardware encoder (VideoToolbox on macOS) — "
-             "much faster and not starved by CPU load; recommended for long videos",
+        "--hw", dest="hw", action="store_true", default=True,
+        help="burn subtitles on the hardware encoder (VideoToolbox on macOS); "
+             "ON by default — fast and not starved by CPU load",
+    )
+    parser.add_argument(
+        "--no-hw", dest="hw", action="store_false",
+        help="burn with the CPU x264 encoder instead of the hardware encoder",
     )
     parser.add_argument("--no-publish", action="store_true", help="skip the publish stage")
     parser.add_argument("--no-data", action="store_true", help="skip recording metrics")
@@ -198,9 +206,9 @@ def main(argv: list[str] | None = None) -> int:
              "gpt-sovits: a reference-clip path (default: auto-cut channel voice)",
     )
     parser.add_argument(
-        "--dub-engine",
-        help="dub engine: gpt-sovits, edge, or kokoro "
-             "(default: auto = GPT-SoVITS if its server is up, else edge)",
+        "--dub-engine", default="edge",
+        help="dub engine: edge (default), gpt-sovits, kokoro, or auto "
+             "(auto = GPT-SoVITS if its server is up, else edge)",
     )
     parser.add_argument("--attempts", type=int, default=3, help="retry attempts per stage")
     parser.add_argument("--retry-delay", type=float, default=2.0, help="base retry backoff (seconds)")

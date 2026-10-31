@@ -94,13 +94,15 @@ def test_default_style_is_configured():
     assert style.marginv == MARGIN_V  # sits low near the bottom edge
 
 
-def test_style_is_white_with_black_outline():
+def test_style_is_white_with_thin_black_outline():
+    from translate.styler import OUTLINE_WIDTH
+
     subs = build_bilingual([Cue(0, 0, 1000, "x")], ["y"])
     style = subs.styles["Default"]
     assert style.primarycolor == WHITE
     assert style.outlinecolor == BLACK
     assert style.borderstyle == 1
-    assert style.outline == 2.0
+    assert style.outline == OUTLINE_WIDTH == 1.0
 
 
 def test_length_mismatch_raises():

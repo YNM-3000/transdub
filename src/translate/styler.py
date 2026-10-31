@@ -17,7 +17,7 @@ import pysubs2
 # Chinese is the primary line: on top; English smaller underneath. The Chinese
 # size is FIXED (consistent across cues) and kept small so most lines fit without
 # folding; when a line is still too long it folds to AT MOST two lines.
-ZH_FONTSIZE = 18
+ZH_FONTSIZE = 16
 EN_FONTSIZE = 12
 MIN_EN_FONTSIZE = 9
 FONT_NAME = "Arial"
@@ -25,14 +25,14 @@ ALIGN_BOTTOM_CENTER = pysubs2.Alignment.BOTTOM_CENTER
 
 # Max display width per line (CJK chars count as 2). The smaller Chinese font
 # fits more per line, so the threshold is higher — fewer folds.
-ZH_MAX_WIDTH = 48   # ~24 Chinese characters at fs18
+ZH_MAX_WIDTH = 54   # ~27 Chinese characters at fs16
 ZH_MAX_LINES = 2    # never fold Chinese beyond two lines
 EN_MAX_WIDTH = 64   # English stays on ONE line (font shrinks if wider)
 
-# Static look: white text, black outline (opaque; ASS alpha 0 == opaque).
+# Static look: white text, thin black outline (opaque; ASS alpha 0 == opaque).
 WHITE = pysubs2.Color(255, 255, 255, 0)
 BLACK = pysubs2.Color(0, 0, 0, 0)
-OUTLINE_WIDTH = 2.0
+OUTLINE_WIDTH = 1.0
 # Vertical margin from the bottom edge — smaller sits the subtitle lower.
 MARGIN_V = 6
 

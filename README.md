@@ -110,9 +110,20 @@ saved next to the output as **`<video>.final.run.json`** (a run manifest),
 including for failed runs, so you can check which engine produced each phase when
 something looks off later.
 
+**Defaults** (opt out as noted): sentence-merge **on** (`--no-sentences`),
+hardware compose **on** (`--no-hw`), Chinese voice dub **on** (`--no-dub`) via
+**edge-tts** (`--dub-engine gpt-sovits|kokoro|auto` to change). So
+`transdub-run <url>` already gives readable merged subtitles, a fast burn, and an
+edge-tts dub. Add `--whisper` when you want the cleanest sentence boundaries.
+
 Useful flags:
 
-- `--no-dub` skip the Chinese voice dub (on by default)
+- `--no-sentences` translate per caption fragment instead of merging sentences
+  (merge is **on** by default: more readable subtitles, better dub timing)
+- `--no-hw` use the CPU x264 encoder instead of the hardware encoder (on by
+  default: fast and not starved by other apps — important for long videos)
+- `--no-dub` skip the Chinese voice dub (on by default, edge-tts)
+- `--dub-engine edge|gpt-sovits|kokoro|auto` pick the dub engine (default `edge`)
 - `--voice zh-CN-YunxiNeural` pick the dub voice
 - `--backend auto|google|hunyuan|ollama|claude` translation engine. `auto`
   (default) prefers **free online Google MT** when reachable (faithful, concise,
@@ -121,16 +132,11 @@ Useful flags:
   Claude. `google` / `hunyuan` force those dedicated MT engines; `ollama` /
   `claude` force a chat model. (Chat models over-expand dense content and can
   drop/merge lines — dedicated MT is more reliable.)
-- `--sentences` merge caption fragments into whole sentences before translating
-  — markedly more reliable for local models (coherent units, no dropped/repeated
-  lines) and more readable subtitles. Recommended when translating locally.
 - `--whisper` transcribe the audio with Whisper even when captions exist.
-  YouTube auto-captions have no punctuation, so `--sentences` can only merge on
+  YouTube auto-captions have no punctuation, so sentence-merge can only split on
   pauses/length and may straddle sentences; Whisper restores punctuation, giving
-  clean sentence boundaries. Pairs with `--sentences`; needs the `asr` extra and
-  is slower (writes `<video>.whisper.srt`).
-- `--hw` burn subtitles on the macOS hardware encoder (VideoToolbox) instead of
-  CPU x264 — much faster and not starved by other apps; **use it for long videos**
+  clean sentence boundaries. Needs the `asr` extra and is slower (writes
+  `<video>.whisper.srt`).
 - `--stop-after translate` halt at the human subtitle-review gate (then run
   `transdub-compose` / `transdub-dub` / `transdub-publish` after review)
 - `--stop-after compose` stop before publishing
