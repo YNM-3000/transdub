@@ -9,9 +9,10 @@ a foreign (YouTube) video into a share-ready Chinese version — accurate biling
 subtitles *and* a natural Chinese voice-over — from a single command. It handles
 the whole journey so you don't have to stitch tools together:
 
-**download → transcribe → translate → compose → dub → publish**, with optional
-channel monitoring on one end and view/like metrics on the other. See
-`instruction.md` for the full spec.
+**download → transcribe → translate → compose → dub → publish**, then upload to
+Bilibili as a separate, deliberate step. You pick the videos to process yourself
+(channel monitoring exists but is optional — see below). See `instruction.md` for
+the full spec.
 
 It runs **local-first**, so you can do most of it on your own machine for free:
 translation and publish text prefer a local Ollama model and fall back to Claude
@@ -110,6 +111,9 @@ Useful flags:
 - `--voice zh-CN-YunxiNeural` pick the dub voice
 - `--backend auto|ollama|claude` translation engine (default `auto` =
   local-first with Claude fallback; publish metadata mirrors this)
+- `--sentences` merge caption fragments into whole sentences before translating
+  — markedly more reliable for local models (coherent units, no dropped/repeated
+  lines) and more readable subtitles. Recommended when translating locally.
 - `--stop-after translate` halt at the human subtitle-review gate (then run
   `transdub-compose` / `transdub-dub` / `transdub-publish` after review)
 - `--stop-after compose` stop before publishing
@@ -150,16 +154,41 @@ with the individual stage commands below — there's no standalone transcribe
 command, so a caption-less video needs one full-flow run first to generate the
 `<video>.en.srt`.
 
-## Monitor channels + notify
+## Publishing to Bilibili
 
-Maintain a category-grouped watchlist (`channels.json`, see
-`channels.example.json`), then scan for new and trending videos and email a
-digest. Needs `YOUTUBE_API_KEY` and `SMTP_*` in `.env`.
+The publish stage produces the metadata + cover; a separate command uploads the
+finished video with [biliup](https://github.com/biliup/biliup). It's kept out of
+the automated pipeline on purpose — uploading publishes to a real account, so you
+run it deliberately after reviewing the result.
+
+One-time setup: install biliup (standalone binary, `pip install biliup`, or
+`cargo install biliup`) and log in once to create `cookies.json`:
+
+```bash
+biliup login          # scan the QR code in the Bilibili app
+```
+
+Then upload (defaults to a **dry run** that only prints the command — add
+`--publish` to actually upload). It reads the sibling `<video>.metadata.json` and
+`.cover.jpg`, and attributes the source as a repost (转载):
+
+```bash
+uv run transdub-upload "output/.../My Video.final.dubbed.mp4"            # dry run
+uv run transdub-upload "output/.../My Video.final.dubbed.mp4" --publish  # upload
+# --tid <id> category · --original (原创 instead of 转载) · --source <url> override
+```
+
+## Monitor channels (optional)
+
+Picking videos by hand is the default workflow — just pass URLs to `transdub-run`.
+If you'd rather automate discovery, there's an optional channel monitor: maintain
+a watchlist (`channels.json`, see `channels.example.json`) and scan for new and
+trending videos, emailing a digest. Needs `YOUTUBE_API_KEY` and `SMTP_*` in
+`.env`.
 
 ```bash
 uv run transdub-monitor --config channels.json            # scan + email
 uv run transdub-monitor --config channels.json --dry-run  # scan + print only
-uv run transdub-run --monitor --schedule 3600             # scan + email hourly
 ```
 
 ## Individual stages
@@ -185,6 +214,8 @@ uv run transdub-dub --samples ./samples-out # synth one clip per voice to listen
 
 # Publish: Chinese title/description/tags + a cover, into output/<date>/<channel>/
 uv run transdub-publish out/final.mp4 -s video.bilingual.ass
+# Upload the result to Bilibili (see "Publishing to Bilibili" above)
+uv run transdub-upload out/final.dubbed.mp4            # dry run; --publish to upload
 
 # Data: record source vs. re-upload metrics and compare
 uv run transdub-data record-source downloads
@@ -203,7 +234,11 @@ uv run transdub-data show VIDEO_ID
   --no-clean` to disable).
 - **Translation** uses a numbered-line text protocol (not JSON — robust to
   punctuation). `auto` runs a local Ollama model per chunk and falls back to
-  Claude on any chunk it flubs.
+  Claude on any chunk it flubs. Bad responses (dropped, blank, or repeated
+  lines) are detected and retried/failed-over. Pass **`--sentences`** to merge
+  caption fragments into whole sentences before translating — strongly
+  recommended for local models, which handle coherent sentences far better than
+  mid-sentence slivers.
 - **Dubbing** first **merges the caption fragments into whole sentences** (the
   bilingual subtitle is chopped into ~2s reading windows mid-sentence, which
   dubs badly), synthesizes each sentence, and fits it to its time window
@@ -294,7 +329,7 @@ behind a protocol, so the flow can later move onto a workflow framework.
 - `dub/` — Chinese TTS voice track (edge-tts / Kokoro `VoiceBackend`) fitted to
   the subtitle timeline, replacing the audio
 - `publish/` — Chinese title/description/tags (`MetadataBackend`: Claude +
-  Ollama, local-first) + cover frame
+  Ollama, local-first) + cover frame + a `biliup` upload wrapper (`transdub-upload`)
 - `data/` — SQLite store of source vs. re-upload metric snapshots
 - `monitor/` — YouTube Data API channel watch + new/trending detection + email
 - `obs/` — terminal logging + single-line progress

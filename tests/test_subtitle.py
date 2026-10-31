@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from translate.models import Cue
-from translate.subtitle import chunk_cues, dedupe_rolling, load_cues
+from translate.subtitle import chunk_cues, dedupe_rolling, load_cues, merge_sentences
 
 
 def test_load_cues_parses_and_drops_blank(sample_srt):
@@ -53,6 +53,37 @@ def test_load_cues_no_clean_keeps_raw_lines(sample_srt):
 
 def _cues(n: int) -> list[Cue]:
     return [Cue(index=i, start_ms=i * 1000, end_ms=i * 1000 + 500, text=f"l{i}") for i in range(n)]
+
+
+def test_merge_sentences_combines_unpunctuated_fragments():
+    # Auto-caption fragments with no punctuation and no pauses → merged until the
+    # char cap, spanning first.start to last.end, re-indexed, nothing dropped.
+    cues = [
+        Cue(0, 0, 2000, "let's say you are building a"),
+        Cue(1, 2000, 4000, "mobile or browser based app"),
+        Cue(2, 4000, 6000, "and you want users to sign in"),
+    ]
+    merged = merge_sentences(cues, max_chars=200)
+    assert len(merged) == 1
+    assert merged[0].text == "let's say you are building a mobile or browser based app and you want users to sign in"
+    assert merged[0].start_ms == 0 and merged[0].end_ms == 6000
+    assert merged[0].index == 0
+
+
+def test_merge_sentences_flushes_on_terminator_and_pause():
+    cues = [
+        Cue(0, 0, 1000, "first thought."),       # ends on '.'
+        Cue(1, 1000, 2000, "second thought"),
+        Cue(2, 5000, 6000, "after a long pause"),  # 3s gap before this
+    ]
+    merged = merge_sentences(cues, max_chars=200, max_gap_ms=700)
+    assert [c.text for c in merged] == [
+        "first thought.", "second thought", "after a long pause",
+    ]
+
+
+def test_merge_sentences_empty():
+    assert merge_sentences([]) == []
 
 
 def test_chunk_cues_covers_all_cues_once():

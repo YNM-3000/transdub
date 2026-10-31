@@ -8,8 +8,9 @@
 （YouTube）视频变成可以直接分享的中文版本——既有精准的中英双语字幕，也有自然的
 中文配音。它把整个流程串成一条链，省去你在各种工具之间来回折腾：
 
-**下载 → 转写 → 翻译 → 合成 → 配音 → 发布**，一端可选接入频道监控，另一端记录
-播放量/点赞等数据。完整规格见 `instruction.md`。
+**下载 → 转写 → 翻译 → 合成 → 配音 → 发布**，随后作为单独、慎重的一步上传到
+B 站。要处理哪些视频由你自己挑选（频道监控也有，但是可选的——见下文）。完整规格见
+`instruction.md`。
 
 它**本地优先**，所以大部分环节都能在自己的机器上免费完成：翻译和发布文案优先用
 本地 Ollama 模型，只有在需要时才回退到 Claude；缺失的字幕用本地 Whisper 转写；
@@ -100,6 +101,8 @@ engines (local vs cloud):
 - `--voice zh-CN-YunxiNeural` 指定配音音色
 - `--backend auto|ollama|claude` 翻译引擎（默认 `auto` = 本地优先 + Claude 回退；
   发布文案同理）
+- `--sentences` 翻译前先把字幕碎片合并成完整句子——对本地模型而言可靠得多（单位完整、
+  不丢行不重复），字幕也更易读。本地翻译时推荐开启。
 - `--stop-after translate` 停在人工校对字幕的关口（校对后再跑
   `transdub-compose` / `transdub-dub` / `transdub-publish`）
 - `--stop-after compose` 在发布前停止
@@ -136,15 +139,37 @@ uv run transdub-run "…VIDEO…" --stop-after compose  # 先出带字幕的视�
 一旦字幕已存在（下载得到或 Whisper 生成），你也可以用下面的单环节命令手动续跑——
 但没有独立的转写命令，所以无字幕的视频需要先完整跑一次来生成 `<video>.en.srt`。
 
-## 频道监控 + 通知
+## 发布到 B 站
 
-维护一份按分类分组的关注清单（`channels.json`，参见 `channels.example.json`），
-扫描新视频和热门视频并发送邮件摘要。需要 `.env` 中的 `YOUTUBE_API_KEY` 与 `SMTP_*`。
+发布环节生成元数据 + 封面；由一个单独命令用 [biliup](https://github.com/biliup/biliup)
+上传成品。它刻意不并入自动流程——上传会发布到真实账号，所以请在检查结果后慎重手动执行。
+
+一次性准备：安装 biliup（独立二进制、`pip install biliup` 或 `cargo install biliup`），
+并登录一次生成 `cookies.json`：
+
+```bash
+biliup login          # 用 B 站 App 扫码
+```
+
+然后上传（默认是**空跑**，只打印命令——加 `--publish` 才真正上传）。它会读取同名的
+`<video>.metadata.json` 与 `.cover.jpg`，并以转载（copyright 2）方式标注来源：
+
+```bash
+uv run transdub-upload "output/.../My Video.final.dubbed.mp4"            # 空跑
+uv run transdub-upload "output/.../My Video.final.dubbed.mp4" --publish  # 上传
+# --tid <id> 分区 · --original（原创，而非转载）· --source <url> 覆盖来源
+```
+
+## 频道监控（可选）
+
+默认的工作方式是自己挑视频——直接把 URL 传给 `transdub-run` 即可。若想自动发现，
+这里也有一个可选的频道监控：维护关注清单（`channels.json`，参见
+`channels.example.json`），扫描新视频和热门视频并发送邮件摘要。需要 `.env` 中的
+`YOUTUBE_API_KEY` 与 `SMTP_*`。
 
 ```bash
 uv run transdub-monitor --config channels.json            # 扫描 + 发邮件
 uv run transdub-monitor --config channels.json --dry-run  # 扫描 + 仅打印
-uv run transdub-run --monitor --schedule 3600             # 每小时扫描 + 发邮件
 ```
 
 ## 单独环节
@@ -170,6 +195,8 @@ uv run transdub-dub --samples ./samples-out # 每个音色合成一段用于试�
 
 # 发布：中文标题/简介/标签 + 一张封面，输出到 output/<日期>/<频道>/
 uv run transdub-publish out/final.mp4 -s video.bilingual.ass
+# 上传到 B 站（见上文“发布到 B 站”）
+uv run transdub-upload out/final.dubbed.mp4            # 空跑；--publish 才上传
 
 # 数据：记录并对比“原片 vs 二次发布”的指标
 uv run transdub-data record-source downloads
@@ -184,7 +211,9 @@ uv run transdub-data show VIDEO_ID
   没有字幕的视频依然能处理。能下载到的自动字幕是“滚动”格式（每条都重复上一行再加
   一行新内容），翻译前会先去滚动（`transdub-translate --no-clean` 可关闭）。
 - **翻译**采用编号行文本协议（而非 JSON——对标点更稳健）。`auto` 模式按块调用本地
-  Ollama 模型，对任何它搞砸的块回退到 Claude。
+  Ollama 模型，对任何它搞砸的块回退到 Claude。异常回复（丢行、空行、重复行）会被检测
+  并重试/回退。加 **`--sentences`** 可在翻译前把字幕碎片合并成完整句子——强烈建议本地
+  模型使用，完整句子比句中碎片好翻译得多。
 - **配音**先把**字幕碎片合并成完整句子**（双语字幕被切成约 2 秒、常常断在句子中间
   的阅读窗口，直接配音效果很差），再逐句合成，并按其时间窗口对齐（加速上限 2.0×）。
   对齐是以“距该字幕结束还剩多少时间”为准来测量的，所以某句超时后会被压缩以**吸收
@@ -265,7 +294,7 @@ uv run pytest                    # 全部测试（无需网络/API/模型）
 - `dub/` —— 中文 TTS 音轨（`VoiceBackend`：edge-tts / Kokoro），对齐字幕时间轴后
   替换音频
 - `publish/` —— 中文标题/简介/标签（`MetadataBackend`：Claude + Ollama，本地优先）
-  + 封面帧
+  + 封面帧 + 一个 `biliup` 上传封装（`transdub-upload`）
 - `data/` —— 以 SQLite 保存“原片 vs 二次发布”的指标快照
 - `monitor/` —— YouTube Data API 频道监控 + 新片/热门检测 + 邮件
 - `obs/` —— 终端日志 + 单行进度

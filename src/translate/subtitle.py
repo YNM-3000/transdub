@@ -19,6 +19,16 @@ from .models import Chunk, Cue
 DEFAULT_CHUNK_SIZE = 30
 DEFAULT_OVERLAP = 2
 
+# Sentence-merge tuning. Auto-captions arrive as ~2s fragments chopped
+# mid-sentence (and usually carry no punctuation), which makes local models
+# drop/repeat lines when asked to translate each slice. Merging fragments into
+# whole thoughts gives coherent, count-stable units. A unit is flushed on
+# terminal punctuation, a speech pause, or a size cap — whichever comes first.
+_SENTENCE_ENDERS = ".?!。！？…"
+MERGE_MAX_CHARS = 80       # keep a merged line short enough to still render
+MERGE_MAX_MS = 10_000
+MERGE_MAX_GAP_MS = 700     # a pause this long likely ends a clause/sentence
+
 
 def load_cues(path: str | Path, clean: bool = True) -> list[Cue]:
     """Load a subtitle file into a list of immutable cues.
@@ -83,6 +93,52 @@ def dedupe_rolling(cues: list[Cue]) -> list[Cue]:
             )
         )
     return result
+
+
+def merge_sentences(
+    cues: list[Cue],
+    *,
+    max_chars: int = MERGE_MAX_CHARS,
+    max_ms: int = MERGE_MAX_MS,
+    max_gap_ms: int = MERGE_MAX_GAP_MS,
+) -> list[Cue]:
+    """Merge consecutive cues into sentence-sized units.
+
+    Combines fragments until the text ends on sentence punctuation, a pause
+    longer than `max_gap_ms` precedes the next cue, or a size cap is hit. The
+    merged cue spans from the first fragment's start to the last's end, so it
+    stays anchored to the picture. Translating these whole units (instead of
+    mid-sentence slivers) is far more reliable for local models, and reads
+    better as a subtitle. Re-indexes the result contiguously.
+    """
+    if not cues:
+        return []
+
+    merged: list[Cue] = []
+    start = cues[0].start_ms
+    end = cues[0].end_ms
+    parts = [cues[0].text.strip()]
+
+    def flush() -> None:
+        text = " ".join(p for p in parts if p).strip()
+        if text:
+            merged.append(Cue(len(merged), start, max(end, start + 1), text))
+
+    for prev, cur in zip(cues, cues[1:]):
+        ends_sentence = bool(parts[-1]) and parts[-1][-1] in _SENTENCE_ENDERS
+        paused = cur.start_ms - prev.end_ms > max_gap_ms
+        would_overflow = (
+            sum(len(p) for p in parts) + 1 + len(cur.text) > max_chars
+            or cur.end_ms - start > max_ms
+        )
+        if ends_sentence or paused or would_overflow:
+            flush()
+            start, end, parts = cur.start_ms, cur.end_ms, [cur.text.strip()]
+        else:
+            parts.append(cur.text.strip())
+            end = cur.end_ms
+    flush()
+    return merged
 
 
 def chunk_cues(

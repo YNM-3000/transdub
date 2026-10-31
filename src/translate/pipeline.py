@@ -14,7 +14,7 @@ from .backend import TranslationBackend
 from .models import Cue
 from .sanitize import strip_translator_notes
 from .styler import build_bilingual
-from .subtitle import chunk_cues, load_cues
+from .subtitle import chunk_cues, load_cues, merge_sentences
 
 log = logging.getLogger("transdub.translate")
 
@@ -55,15 +55,21 @@ def translate_file(
     backend: TranslationBackend,
     clean: bool = True,
     *,
+    sentences: bool = False,
     on_progress: ProgressFn | None = None,
 ) -> Path:
     """Translate a subtitle file and write a bilingual ASS to `out_path`.
 
     `clean` de-rolls YouTube auto-captions before translating (see load_cues).
+    `sentences` merges caption fragments into whole sentences first — more
+    reliable for local models and more readable (see merge_sentences).
     """
     cues = load_cues(in_path, clean=clean)
     if not cues:
         raise ValueError(f"no usable cues found in {in_path}")
+    if sentences:
+        cues = merge_sentences(cues)
+        log.info("translate: merged into %d sentence cues", len(cues))
 
     translations = translate_cues(cues, backend, on_progress=on_progress)
     subs = build_bilingual(cues, translations)

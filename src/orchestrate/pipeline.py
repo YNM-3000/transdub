@@ -34,6 +34,7 @@ def translate_download(
     backend: TranslationBackend,
     *,
     clean: bool = True,
+    sentences: bool = False,
     on_progress=None,
     transcriber: Transcriber | None = None,
     asr_progress=None,
@@ -70,7 +71,7 @@ def translate_download(
     try:
         ass = translate_file(
             subtitle, out_path, backend, clean=clean,
-            on_progress=on_progress,
+            sentences=sentences, on_progress=on_progress,
         )
     except Exception as err:
         return PipelineResult(result.url, TRANSLATE_FAILED, result, error=str(err))

@@ -115,6 +115,7 @@ def _run_pipeline(args) -> int:
                 output_dir=args.output_dir,
                 store=store,
                 stop_after=args.stop_after,
+                sentences=args.sentences,
                 download_kwargs=download_kwargs,
             )
             _print_flow(result)
@@ -149,6 +150,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--stop-after", choices=["translate", "compose"],
         help="halt early (translate = stop at the human review gate)",
+    )
+    parser.add_argument(
+        "--sentences", action="store_true",
+        help="merge caption fragments into whole sentences before translating "
+             "(more reliable for local models; more readable subtitles)",
     )
     parser.add_argument("--no-publish", action="store_true", help="skip the publish stage")
     parser.add_argument("--no-data", action="store_true", help="skip recording metrics")

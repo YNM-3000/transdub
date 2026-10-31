@@ -43,6 +43,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_false",
         help="do not de-roll YouTube auto-captions before translating",
     )
+    parser.add_argument(
+        "--sentences",
+        action="store_true",
+        help="merge caption fragments into whole sentences before translating "
+             "(more reliable for local models; more readable subtitles)",
+    )
     obs.add_verbose_arg(parser)
     args = parser.parse_args(argv)
     obs.configure(args.verbose)
@@ -57,6 +63,7 @@ def main(argv: list[str] | None = None) -> int:
         backend = get_backend(args.backend)
         result = translate_file(
             in_path, out_path, backend, clean=args.clean,
+            sentences=args.sentences,
             on_progress=obs.make_progress("translate", _log),
         )
     except Exception as err:

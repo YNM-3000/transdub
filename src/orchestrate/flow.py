@@ -92,6 +92,7 @@ def run_full(
     output_dir: str = "output",
     store=None,
     stop_after: str | None = None,
+    sentences: bool = False,
     download_kwargs: dict | None = None,
     sleep=None,
 ) -> FlowResult:
@@ -124,7 +125,8 @@ def run_full(
     # 2. Translate (transcribes the audio first when no caption was downloaded)
     tr: PipelineResult = _timed("translate", lambda: retry(
         lambda: translate_download(
-            dl, backend, on_progress=obs.make_progress("  translate", log),
+            dl, backend, sentences=sentences,
+            on_progress=obs.make_progress("  translate", log),
             transcriber=transcriber,
             asr_progress=obs.make_progress("  transcribe", log),
         ),
