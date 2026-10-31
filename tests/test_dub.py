@@ -192,6 +192,31 @@ def test_gptsovits_synthesize_requires_reference(tmp_path):
         GPTSoVITSBackend(transport=lambda b: b"x").synthesize("hi", tmp_path / "o.wav")
 
 
+def test_dub_video_aligns_voice_to_cues_by_default(tmp_path, monkeypatch):
+    import dub.pipeline as pipe
+
+    ass = _bilingual_ass(tmp_path)  # 2 cues, neither ends in sentence punctuation
+    video = tmp_path / "v.mp4"
+    video.write_bytes(b"x")
+    seen = {}
+    monkeypatch.setattr(pipe, "build_dub_track",
+                        lambda cues, *a, **k: seen.__setitem__("n", len(cues)) or (tmp_path / "d.wav"))
+    monkeypatch.setattr(pipe, "mux_audio", lambda v, a, o: Path(o).write_bytes(b"y"))
+
+    class B:
+        name = "edge"
+        voice = "zh-CN-X"
+
+        def synthesize(self, t, o):
+            pass
+
+    pipe.dub_video(video, ass, B(), tmp_path / "out.mp4")              # default
+    assert seen["n"] == 2   # one voice clip per subtitle cue (aligned, no merge)
+
+    pipe.dub_video(video, ass, B(), tmp_path / "out2.mp4", merge=True)  # opt-in merge
+    assert seen["n"] == 1   # cues re-grouped into one sentence unit
+
+
 def test_dub_video_injects_channel_reference(tmp_path, monkeypatch):
     import dub.pipeline as pipe
     import dub.reference as ref_mod
